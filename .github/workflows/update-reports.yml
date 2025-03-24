@@ -1,0 +1,40 @@
+name: Update Reports CSV from MinIO
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # Runs daily at 6 AM UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  update-report:
+    runs-on: ubuntu-latest
+
+    env:
+      MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+      MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+      MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+      MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
+      MINIO_PREFIX: ${{ secrets.MINIO_PREFIX }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install boto3 pandas
+
+      - name: Run update script
+        run: python scripts/update_csv.py
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add spreadsheet/reports.csv
+          git commit -m "Update reports.csv on $(date +'%Y-%m-%d')" || echo "No changes to commit"
+          git push
