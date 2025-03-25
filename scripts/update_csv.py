@@ -17,7 +17,7 @@ today = date.today().isoformat()
 if not all([endpoint_url, access_key, secret_key, bucket]):
     raise ValueError("❌ Missing required MinIO environment variables!")
 
-# Configure MinIO (S3-compatible) client with explicit settings
+# MinIO client with explicit signature settings
 s3 = boto3.client(
     "s3",
     endpoint_url=endpoint_url,
@@ -25,6 +25,14 @@ s3 = boto3.client(
     aws_secret_access_key=secret_key,
     config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
 )
+
+# Test connection before proceeding
+try:
+    s3.head_bucket(Bucket=bucket)
+    print(f"✅ Successfully connected to MinIO bucket: {bucket}")
+except Exception as e:
+    print(f"❌ MinIO connection failed: {e}")
+    exit(1)
 
 # Read existing CSV or create new DataFrame
 if os.path.exists(csv_path):
