@@ -1,58 +1,54 @@
 import os
+import re
 import subprocess
 import pandas as pd
 from datetime import date
 
-# Config
+# Configuration
 mc_alias = "myminio"
-bucket = os.environ["MINIO_BUCKET"]
-prefix = os.environ.get("MINIO_PREFIX", "")
-
-# Ensure the script always finds the correct CSV file path
-base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Go up one level
-csv_path = os.path.join(base_dir, "spreadsheet", "reports.csv")
-
+bucket = os.environ.get("MINIO_BUCKET", "automation")  # Default to "automation"
+prefix = os.environ.get("MINIO_PREFIX", "auth")  # Default to "auth"
+csv_path = "../spreadsheet/reports.csv"  # Ensure correct path
 today = date.today().isoformat()
 
-# Ensure the spreadsheet directory exists
-os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+# Regex pattern to extract metadata values
+filename_pattern = re.compile(r"T-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)")
 
 # Read existing CSV or create a new DataFrame
 if os.path.exists(csv_path):
     df = pd.read_csv(csv_path)
 else:
-    df = pd.DataFrame(columns=["Filename", "T", "P", "S", "F", "Date"])
+    df = pd.DataFrame(columns=["Filename", "T", "S", "F", "I", "KI", "Date"])
 
-# Get list of existing filenames
+# Get list of existing filenames to avoid duplicates
 existing_files = set(df["Filename"].values)
 
-# List objects in MinIO bucket using mc
+# List HTML report files in MinIO using `mc find`
 try:
     result = subprocess.run(
-        ["mc", "ls", f"{mc_alias}/{bucket}/{prefix}"],
+        ["mc", "find", f"{mc_alias}/{bucket}/{prefix}", "--name", "*.html"],
         capture_output=True,
         text=True,
         check=True
     )
 
-    # Process each line of the output
-    for line in result.stdout.splitlines():
-        parts = line.split()  # Split based on spaces
-        filename = parts[-1]  # The last column contains the filename
+    # Process each file
+    for file_path in result.stdout.splitlines():
+        filename = file_path.strip().split("/")[-1]  # Extract just the filename
 
-        if filename.startswith("T-") and filename.endswith(".csv") and filename not in existing_files:
-            meta = filename.replace(".csv", "").split("_")
-            data = dict(item.split("-") for item in meta if "-" in item)
-
-            row = {
-                "Filename": filename,
-                "T": data.get("T", ""),
-                "P": data.get("P", ""),
-                "S": data.get("S", ""),
-                "F": data.get("F", ""),
-                "Date": today
-            }
-            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        if filename not in existing_files:
+            match = filename_pattern.search(filename)
+            if match:
+                row = {
+                    "Filename": filename,
+                    "T": match.group(1),
+                    "S": match.group(2),
+                    "F": match.group(3),
+                    "I": match.group(4),
+                    "KI": match.group(5),
+                    "Date": today
+                }
+                df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
 
     # Save the updated CSV
     df.to_csv(csv_path, index=False)
