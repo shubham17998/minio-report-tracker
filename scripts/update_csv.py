@@ -10,10 +10,10 @@ MINIO_BUCKET = "automation/auth"
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
 
-# List files from MinIO
-cmd = f"mc ls {MINIO_ALIAS} {MINIO_BUCKET}"
+# List only `.html` files from MinIO
+cmd = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET} --name '*.html'"
 output = subprocess.getoutput(cmd)
-files = [line.split()[-1] for line in output.split("\n") if line]
+files = [line.strip() for line in output.split("\n") if line.strip()]
 
 # Data storage
 report_data = []
