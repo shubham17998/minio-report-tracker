@@ -7,8 +7,15 @@ from datetime import date
 mc_alias = "myminio"
 bucket = os.environ["MINIO_BUCKET"]
 prefix = os.environ.get("MINIO_PREFIX", "")
-csv_path = "spreadsheet/reports.csv"
+
+# Ensure the script always finds the correct CSV file path
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Go up one level
+csv_path = os.path.join(base_dir, "spreadsheet", "reports.csv")
+
 today = date.today().isoformat()
+
+# Ensure the spreadsheet directory exists
+os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
 # Read existing CSV or create a new DataFrame
 if os.path.exists(csv_path):
