@@ -2,22 +2,28 @@ import os
 import boto3
 import pandas as pd
 from datetime import date
+from botocore.config import Config
 
 # Config
-endpoint_url = os.environ["MINIO_ENDPOINT"]
-access_key = os.environ["MINIO_ACCESS_KEY"]
-secret_key = os.environ["MINIO_SECRET_KEY"]
-bucket = os.environ["MINIO_BUCKET"]
-prefix = os.environ.get("MINIO_PREFIX", "")
+endpoint_url = os.getenv("MINIO_ENDPOINT")
+access_key = os.getenv("MINIO_ACCESS_KEY")
+secret_key = os.getenv("MINIO_SECRET_KEY")
+bucket = os.getenv("MINIO_BUCKET")
+prefix = os.getenv("MINIO_PREFIX", "")
 csv_path = "spreadsheet/reports.csv"
 today = date.today().isoformat()
 
-# Connect to MinIO (S3-compatible)
+# Ensure all required environment variables are set
+if not all([endpoint_url, access_key, secret_key, bucket]):
+    raise ValueError("❌ Missing required MinIO environment variables!")
+
+# Configure MinIO (S3-compatible) client with explicit settings
 s3 = boto3.client(
     "s3",
     endpoint_url=endpoint_url,
     aws_access_key_id=access_key,
     aws_secret_access_key=secret_key,
+    config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
 )
 
 # Read existing CSV or create new DataFrame
@@ -30,25 +36,28 @@ else:
 existing_files = set(df["Filename"].values)
 
 # List objects in MinIO bucket
-response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+try:
+    response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    for obj in response.get("Contents", []):
+        key = obj["Key"]
+        filename = key.split("/")[-1]
 
-for obj in response.get("Contents", []):
-    key = obj["Key"]
-    filename = key.split("/")[-1]
+        if filename.startswith("T-") and filename.endswith(".csv") and filename not in existing_files:
+            parts = filename.replace(".csv", "").split("_")
+            data = dict(part.split("-") for part in parts if "-" in part)
+            row = {
+                "Filename": filename,
+                "T": data.get("T", ""),
+                "P": data.get("P", ""),
+                "S": data.get("S", ""),
+                "F": data.get("F", ""),
+                "Date": today
+            }
+            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
 
-    if filename.startswith("T-") and filename.endswith(".csv") and filename not in existing_files:
-        parts = filename.replace(".csv", "").split("_")
-        data = dict(part.split("-") for part in parts if "-" in part)
-        row = {
-            "Filename": filename,
-            "T": data.get("T", ""),
-            "P": data.get("P", ""),
-            "S": data.get("S", ""),
-            "F": data.get("F", ""),
-            "Date": today
-        }
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    # Save the updated CSV
+    df.to_csv(csv_path, index=False)
+    print(f"✅ Updated {csv_path} with latest report data.")
 
-# Save the updated CSV
-df.to_csv(csv_path, index=False)
-print(f"✅ Updated {csv_path} with latest report data.")
+except Exception as e:
+    print(f"❌ Error accessing MinIO: {e}")
