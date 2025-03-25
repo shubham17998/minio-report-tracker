@@ -30,9 +30,7 @@ jobs:
         run: python scripts/update_csv.py
 
       - name: Move updated CSV inside the repo
-        run: mv ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv \
-                ~/actions-runner/_work/minio-report-tracker/minio-report-tracker/spreadsheet/
-
+        run: mv ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv ~/actions-runner/_work/minio-report-tracker/minio-report-tracker/spreadsheet/
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
