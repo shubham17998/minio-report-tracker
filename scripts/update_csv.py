@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import date
 from botocore.config import Config
 
-# Config
+# Load environment variables
 endpoint_url = os.getenv("MINIO_ENDPOINT")
 access_key = os.getenv("MINIO_ACCESS_KEY")
 secret_key = os.getenv("MINIO_SECRET_KEY")
@@ -13,11 +13,11 @@ prefix = os.getenv("MINIO_PREFIX", "")
 csv_path = "spreadsheet/reports.csv"
 today = date.today().isoformat()
 
-# Ensure all required environment variables are set
+# Ensure required environment variables are set
 if not all([endpoint_url, access_key, secret_key, bucket]):
     raise ValueError("❌ Missing required MinIO environment variables!")
 
-# MinIO client with explicit signature settings
+# Configure Boto3 client for MinIO
 s3 = boto3.client(
     "s3",
     endpoint_url=endpoint_url,
@@ -26,7 +26,7 @@ s3 = boto3.client(
     config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
 )
 
-# Test connection before proceeding
+# Test MinIO connection
 try:
     s3.head_bucket(Bucket=bucket)
     print(f"✅ Successfully connected to MinIO bucket: {bucket}")
