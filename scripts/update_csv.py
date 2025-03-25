@@ -1,40 +1,16 @@
 import os
-import boto3
+import subprocess
 import pandas as pd
 from datetime import date
-from botocore.config import Config
 
-# Load environment variables
-endpoint_url = os.getenv("MINIO_ENDPOINT")
-access_key = os.getenv("MINIO_ACCESS_KEY")
-secret_key = os.getenv("MINIO_SECRET_KEY")
-bucket = os.getenv("MINIO_BUCKET")
-prefix = os.getenv("MINIO_PREFIX", "")
+# Config
+mc_alias = "myminio"
+bucket = os.environ["MINIO_BUCKET"]
+prefix = os.environ.get("MINIO_PREFIX", "")
 csv_path = "spreadsheet/reports.csv"
 today = date.today().isoformat()
 
-# Ensure required environment variables are set
-if not all([endpoint_url, access_key, secret_key, bucket]):
-    raise ValueError("❌ Missing required MinIO environment variables!")
-
-# Configure Boto3 client for MinIO
-s3 = boto3.client(
-    "s3",
-    endpoint_url=endpoint_url,
-    aws_access_key_id=access_key,
-    aws_secret_access_key=secret_key,
-    config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
-)
-
-# Test MinIO connection
-try:
-    s3.head_bucket(Bucket=bucket)
-    print(f"✅ Successfully connected to MinIO bucket: {bucket}")
-except Exception as e:
-    print(f"❌ MinIO connection failed: {e}")
-    exit(1)
-
-# Read existing CSV or create new DataFrame
+# Read existing CSV or create a new DataFrame
 if os.path.exists(csv_path):
     df = pd.read_csv(csv_path)
 else:
@@ -43,16 +19,24 @@ else:
 # Get list of existing filenames
 existing_files = set(df["Filename"].values)
 
-# List objects in MinIO bucket
+# List objects in MinIO bucket using mc
 try:
-    response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    for obj in response.get("Contents", []):
-        key = obj["Key"]
-        filename = key.split("/")[-1]
+    result = subprocess.run(
+        ["mc", "ls", f"{mc_alias}/{bucket}/{prefix}"],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+
+    # Process each line of the output
+    for line in result.stdout.splitlines():
+        parts = line.split()  # Split based on spaces
+        filename = parts[-1]  # The last column contains the filename
 
         if filename.startswith("T-") and filename.endswith(".csv") and filename not in existing_files:
-            parts = filename.replace(".csv", "").split("_")
-            data = dict(part.split("-") for part in parts if "-" in part)
+            meta = filename.replace(".csv", "").split("_")
+            data = dict(item.split("-") for item in meta if "-" in item)
+
             row = {
                 "Filename": filename,
                 "T": data.get("T", ""),
@@ -67,5 +51,5 @@ try:
     df.to_csv(csv_path, index=False)
     print(f"✅ Updated {csv_path} with latest report data.")
 
-except Exception as e:
-    print(f"❌ Error accessing MinIO: {e}")
+except subprocess.CalledProcessError as e:
+    print(f"❌ Error listing MinIO files: {e.stderr}")
