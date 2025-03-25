@@ -1,59 +1,42 @@
 import os
-import subprocess
-import pandas as pd
 import re
-from datetime import datetime
+import pandas as pd
+import subprocess
 
-# MinIO alias and bucket details
+# MinIO alias and bucket
 MINIO_ALIAS = "myminio"
-MINIO_BUCKET = "automation"
-MINIO_FOLDER = "auth/"  # Subfolder inside the bucket
+MINIO_BUCKET = "automation/auth"
 
 # CSV file path
-CSV_DIR = "../spreadsheet"
-CSV_FILE = os.path.join(CSV_DIR, "reports.csv")
+csv_path = "../spreadsheet/reports.csv"
 
-# Ensure the directory exists
-os.makedirs(CSV_DIR, exist_ok=True)
+# List files from MinIO
+cmd = f"mc ls {MINIO_ALIAS} {MINIO_BUCKET}"
+output = subprocess.getoutput(cmd)
+files = [line.split()[-1] for line in output.split("\n") if line]
 
-# Run mc command to list files
-try:
-    cmd = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET}/{MINIO_FOLDER}"
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-    file_list = result.stdout.strip().split("\n")
+# Data storage
+report_data = []
 
-    extracted_data = []
+for file_name in files:
+    if "full-report" not in file_name:
+        print(f"❌ Skipping {file_name} (not a full-report)")
+        continue
     
-    # Filename pattern to extract T, P, S, F values
-    pattern = re.compile(r"T-(\d+)_S-(\d+)_F-(\d+)_I-\d+_KI-\d+")
-
-    for line in file_list:
-        parts = line.split()
-        if len(parts) < 5:
-            continue  # Skip invalid lines
-
-        filename = parts[-1]
-        match = pattern.search(filename)
-        
-        if match:
-            T, S, F = match.groups()
-            date = datetime.now().strftime("%Y-%m-%d")  # Today's date
-            extracted_data.append([filename, T, "-", S, F, date])
-        else:
-            print(f"❌ Failed to extract details from {filename}")
-
-    # Convert to DataFrame
-    df = pd.DataFrame(extracted_data, columns=["Filename", "T", "P", "S", "F", "Date"])
-
-    # Append or create CSV file
-    if os.path.exists(CSV_FILE):
-        df.to_csv(CSV_FILE, mode="a", header=False, index=False)
+    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+    
+    if match:
+        T, P, S, F, I, KI = match.groups()
+        report_data.append([file_name, T, P, S, F, I, KI])
     else:
-        df.to_csv(CSV_FILE, index=False)
+        print(f"❌ Failed to extract details from {file_name}")
 
-    print(f"✅ Updated {CSV_FILE} with latest report data.")
+# Create DataFrame
+df = pd.DataFrame(report_data, columns=["Filename", "T", "P", "S", "F", "I", "KI"])
 
-except subprocess.CalledProcessError as e:
-    print(f"❌ MinIO command failed: {e.stderr}")
-except Exception as e:
-    print(f"❌ Error: {e}")
+# Save to CSV
+if not os.path.exists(os.path.dirname(csv_path)):
+    os.makedirs(os.path.dirname(csv_path))
+
+df.to_csv(csv_path, index=False)
+print(f"✅ Updated {csv_path} with latest full-report data.")
