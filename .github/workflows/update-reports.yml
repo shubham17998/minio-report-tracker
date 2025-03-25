@@ -27,7 +27,9 @@ jobs:
           git diff
 
       - name: Move updated CSV inside the repo
-        run: mv spreadsheet/reports.csv minio-report-tracker/spreadsheet/reports.csv
+        run: |
+          mkdir -p minio-report-tracker/spreadsheet
+          mv spreadsheet/reports.csv minio-report-tracker/spreadsheet/reports.csv
 
       - name: Commit and Push Changes
         run: |
