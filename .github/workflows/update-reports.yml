@@ -21,12 +21,12 @@ jobs:
       - name: Run update script
         run: python scripts/update_csv.py
 
-      - name: Commit and push changes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Built-in GitHub Token
+      - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add spreadsheet/reports.csv
-          git commit -m "Auto-update reports.csv" || echo "No changes to commit"
-          git push "https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:master
+          git add spreadsheet/reports.csv --force
+          git commit -m "Auto-update reports.csv with latest MinIO data" || echo "No changes to commit"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
