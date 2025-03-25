@@ -21,7 +21,8 @@ jobs:
       - name: Run update script
         run: python scripts/update_csv.py
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
-          BUCKET_NAME: ${{ secrets.MINIO_BUCKET }}
+          MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
+          MINIO_PREFIX: ${{ secrets.MINIO_PREFIX }}
