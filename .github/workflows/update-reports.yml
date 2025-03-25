@@ -1,27 +1,17 @@
-name: Update Reports CSV from MinIO
+name: Update CSV via MinIO
 
 on:
-  schedule:
-    - cron: '0 6 * * *'   # Runs daily at 6 AM UTC
-  workflow_dispatch:       # Manual trigger
+  workflow_dispatch:
 
 jobs:
-  update-report:
-    runs-on: ubuntu-latest
-
-    env:
-      MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
-      MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
-      MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
-      MINIO_BUCKET: ${{ secrets.MINIO_BUCKET }}
-      MINIO_PREFIX: ${{ secrets.MINIO_PREFIX }}
-
+  update:
+    runs-on: self-hosted
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -30,11 +20,8 @@ jobs:
 
       - name: Run update script
         run: python scripts/update_csv.py
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add spreadsheet/reports.csv
-          git commit -m "Update reports.csv on $(date +'%Y-%m-%d')" || echo "No changes to commit"
-          git push
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+          BUCKET_NAME: ${{ secrets.MINIO_BUCKET }}
