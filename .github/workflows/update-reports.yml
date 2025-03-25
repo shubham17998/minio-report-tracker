@@ -26,16 +26,14 @@ jobs:
           git status
           git diff
 
-      - name: Run update script
-        run: python scripts/update_csv.py
-
       - name: Move updated CSV inside the repo
-        run: mv ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv ~/actions-runner/_work/minio-report-tracker/minio-report-tracker/spreadsheet/
+        run: mv spreadsheet/reports.csv minio-report-tracker/spreadsheet/reports.csv
+
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add spreadsheet/reports.csv
+          git add minio-report-tracker/spreadsheet/reports.csv
           git commit -m "Auto-update reports.csv" || echo "No changes to commit"
           git push origin master
         env:
