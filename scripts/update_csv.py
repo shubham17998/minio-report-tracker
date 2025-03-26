@@ -42,7 +42,7 @@ for folder in folders:
         print(f"❌ Failed to extract details from {file_name}")
 
 # Create DataFrame
-df = pd.DataFrame(report_data, columns=["Filename", "T", "P", "S", "F", "I", "KI"])
+df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
 
 # Save to CSV
 if not os.path.exists(os.path.dirname(csv_path)):
