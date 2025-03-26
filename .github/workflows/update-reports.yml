@@ -9,6 +9,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures full history is available
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,28 +23,52 @@ jobs:
       - name: Run update script
         run: python scripts/update_csv.py
 
-      - name: Debug Git Status Before Commit
+      # ✅ Debug: Check if reports.csv exists at the source location
+      - name: Check if reports.csv exists in the runner
         run: |
+          echo "🔍 Checking if reports.csv exists at source path..."
+          ls -lh ~/actions-runner/_work/minio-report-tracker/spreadsheet/ || echo "❌ reports.csv not found!"
+          cat ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv || echo "⚠️ Cannot read reports.csv"
+
+      # ✅ Move reports.csv into the correct repo folder
+      - name: Move reports.csv into the GitHub repo
+        run: |
+          mkdir -p minio-report-tracker/spreadsheet
+          mv -f ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv minio-report-tracker/spreadsheet/
+          ls -lh minio-report-tracker/spreadsheet/
+
+      # ✅ Debug Git status before commit
+      - name: Debug File and Git Status Before Commit
+        run: |
+          echo "🔍 Checking Git status before committing..."
           git status
           git diff
 
-      - name: Move updated CSV inside the repo
+      # ✅ Ensure Git is tracking the changes
+      - name: Force Git to Detect Changes
         run: |
-          mkdir -p minio-report-tracker/spreadsheet
-          mv spreadsheet/reports.csv minio-report-tracker/spreadsheet/reports.csv
+          git add -A
+          git status
 
+      # ✅ Check if reports.csv is ignored in .gitignore
+      - name: Check .gitignore Rules
+        run: cat .gitignore || echo "⚠️ .gitignore not found"
+
+      # ✅ Commit and Push Changes
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/spreadsheet/reports.csv
-          git commit -m "Auto-update reports.csv" || echo "No changes to commit"
+          git add -A
+          git commit -m "Auto-update reports.csv" --allow-empty || echo "⚠️ No new changes to commit"
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ✅ Debug Git After Push
       - name: Debug Git After Push
         run: |
+          git log -1 --stat
+          git status
           git remote -v
           git branch
-          git log -1
