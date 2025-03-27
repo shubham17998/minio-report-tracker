@@ -11,26 +11,24 @@ MINIO_BUCKET = "automation"
 csv_path = "../spreadsheet/reports.csv"
 
 # Get all folders inside the automation bucket
-cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --json | jq -r '.key' | cut -d'/' -f1 | sort -u"
+cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --json | jq -r '.key' | grep '/$' | sed 's:/$::'"
 folder_list_output = subprocess.getoutput(cmd_list_folders)
 folders = [folder.strip() for folder in folder_list_output.split("\n") if folder.strip()]
+
+if not folders:
+    print("❌ No folders found in the MinIO bucket.")
+    exit(1)
 
 # Data storage
 report_data = []
 
 for folder in folders:
     # Get only the latest HTML report inside each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' -exec stat --format '%Y %n' {{}} | sort -nr | head -1"
-    files_output = subprocess.getoutput(cmd_list_files).strip()
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' | sort -nr | awk '{{print $2}}' | head -1"
+    latest_file = subprocess.getoutput(cmd_list_files).strip()
     
-    if not files_output:
-        print(f"❌ No reports found for {folder}")
-        continue
-
-    # Extract file path from the output
-    latest_file = files_output.split(" ", 1)[1] if " " in files_output else ""
     if not latest_file:
-        print(f"❌ Failed to extract latest file for {folder}")
+        print(f"❌ No reports found for {folder}")
         continue
 
     file_name = os.path.basename(latest_file)
