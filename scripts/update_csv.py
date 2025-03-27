@@ -11,7 +11,7 @@ MINIO_BUCKET = "automation"
 csv_path = "../spreadsheet/reports.csv"
 
 # Get all folders inside the automation bucket
-cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --recursive | awk '{{print $5}}' | cut -d'/' -f2 | sort -u"
+cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --json | jq -r '.key' | cut -d'/' -f1 | sort -u"
 folder_list_output = subprocess.getoutput(cmd_list_folders)
 folders = [folder.strip() for folder in folder_list_output.split("\n") if folder.strip()]
 
@@ -20,10 +20,10 @@ report_data = []
 
 for folder in folders:
     # Find the latest HTML report in each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | xargs ls -t | head -1"
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | sort -r | head -1"
     latest_file = subprocess.getoutput(cmd_list_files).strip()
 
-    if not latest_file:
+    if not latest_file or "Object does not exist" in latest_file:
         print(f"❌ No reports found for {folder}")
         continue
 
