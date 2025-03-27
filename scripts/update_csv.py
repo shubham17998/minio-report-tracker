@@ -30,16 +30,24 @@ report_data = []
 
 for folder in folders:
     # List latest HTML file in each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' | sort -nr | head -1"
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' 2>/dev/null | sort -nr | head -1"
     output = subprocess.getoutput(cmd_list_files).strip()
 
-    if not output:
+    if not output or "No such file or directory" in output:
         print(f"❌ No reports found for {folder}")
         continue
 
     try:
         timestamp, file_path = output.split(" ", 1)  # Extract timestamp and filename
         file_name = os.path.basename(file_path)
+
+        # Ensure file exists before processing
+        verify_cmd = f"mc stat {MINIO_ALIAS}/{MINIO_BUCKET}/{folder}/{file_name} 2>/dev/null"
+        verify_output = subprocess.getoutput(verify_cmd).strip()
+
+        if "No such file" in verify_output or not verify_output:
+            print(f"❌ Skipping missing file: {file_name}")
+            continue
 
         # Extract report details from filename
         match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
@@ -49,7 +57,7 @@ for folder in folders:
         else:
             print(f"❌ Failed to extract details from {file_name}")
     except ValueError:
-        print(f"❌ Failed to extract details from {output}")
+        print(f"❌ Error processing output: {output}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "Filename", "T", "P", "S", "F", "I", "KI"])
