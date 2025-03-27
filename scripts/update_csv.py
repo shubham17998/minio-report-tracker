@@ -19,32 +19,36 @@ folders = [folder.strip() for folder in folder_list_output.split("\n") if folder
 report_data = []
 
 for folder in folders:
-    # Get all latest HTML reports inside each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | sort -r"
-    files_output = subprocess.getoutput(cmd_list_files)
-    files = [line.strip() for line in files_output.split("\n") if line.strip()]
-
-    if not files:
+    # Get only the latest HTML report inside each folder
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' -exec stat --format '%Y %n' {{}} | sort -nr | head -1"
+    files_output = subprocess.getoutput(cmd_list_files).strip()
+    
+    if not files_output:
         print(f"❌ No reports found for {folder}")
         continue
 
-    for file_path in files:
-        file_name = os.path.basename(file_path)
+    # Extract file path from the output
+    latest_file = files_output.split(" ", 1)[1] if " " in files_output else ""
+    if not latest_file:
+        print(f"❌ Failed to extract latest file for {folder}")
+        continue
 
-        # Extract language code for masterdata reports
-        if "masterdata" in file_name:
-            lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
-            module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
-        else:
-            module_name = folder  # Other folders use their folder name as module
+    file_name = os.path.basename(latest_file)
 
-        match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+    # Extract language code for masterdata reports
+    if "masterdata" in file_name:
+        lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
+        module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
+    else:
+        module_name = folder  # Other folders use their folder name as module
 
-        if match:
-            T, P, S, F, I, KI = match.groups()
-            report_data.append([module_name, T, P, S, F, I, KI])
-        else:
-            print(f"❌ Failed to extract details from {file_name}")
+    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+
+    if match:
+        T, P, S, F, I, KI = match.groups()
+        report_data.append([module_name, T, P, S, F, I, KI])
+    else:
+        print(f"❌ Failed to extract details from {file_name}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
@@ -54,4 +58,4 @@ if not os.path.exists(os.path.dirname(csv_path)):
     os.makedirs(os.path.dirname(csv_path))
 
 df.to_csv(csv_path, index=False)
-print(f"✅ Updated {csv_path} with masterdata reports in separate rows.")
+print(f"✅ Updated {csv_path} with only the latest reports from each folder.")
