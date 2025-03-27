@@ -1,8 +1,7 @@
 import os
 import re
-import json
-import subprocess
 import pandas as pd
+import subprocess
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
@@ -11,35 +10,42 @@ MINIO_BUCKET = "automation"
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
 
-# Get all folders in the automation bucket
-cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
-output = subprocess.getoutput(cmd_list_folders)
-folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
+# Get all folders inside the automation bucket
+cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --recursive | awk '{{print $5}}' | cut -d'/' -f2 | sort -u"
+folder_list_output = subprocess.getoutput(cmd_list_folders)
+folders = [folder.strip() for folder in folder_list_output.split("\n") if folder.strip()]
 
+# Data storage
 report_data = []
 
 for folder in folders:
-    folder_path = f"{MINIO_BUCKET}/{folder}"
+    # Find the latest HTML report in each folder
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat -c \"%Y %n\" {}' | sort -nr"
+    latest_files_output = subprocess.getoutput(cmd_list_files).strip()
 
-    # List all full-report HTML files in the folder and get the latest one
-    cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
-    file_output = subprocess.getoutput(cmd_list_files)
-
-    if not file_output.strip():
-        print(f"⚠️ No full-report found in {folder_path}, skipping.")
+    if not latest_files_output:
+        print(f"❌ No reports found for {folder}")
         continue
 
-    file_info = json.loads(file_output)
-    file_name = file_info["key"]
+    # Process each report file
+    for line in latest_files_output.split("\n"):
+        _, latest_file = line.split(" ", 1)  # Extract filename
+        file_name = os.path.basename(latest_file)
 
-    # Extract details from the file name
-    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+        # Extract language code for masterdata reports
+        if "masterdata" in file_name:
+            lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
+            module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
+        else:
+            module_name = folder  # Other folders use their folder name as module
 
-    if match:
-        T, P, S, F, I, KI = match.groups()
-        report_data.append([folder, T, P, S, F, I, KI])  # Store only folder name
-    else:
-        print(f"❌ Failed to extract details from {file_name}")
+        match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+
+        if match:
+            T, P, S, F, I, KI = match.groups()
+            report_data.append([module_name, T, P, S, F, I, KI])
+        else:
+            print(f"❌ Failed to extract details from {file_name}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
@@ -49,4 +55,4 @@ if not os.path.exists(os.path.dirname(csv_path)):
     os.makedirs(os.path.dirname(csv_path))
 
 df.to_csv(csv_path, index=False)
-print(f"✅ Updated {csv_path} with latest full-report data from all folders.")
+print(f"✅ Updated {csv_path} with masterdata reports in separate rows.")
