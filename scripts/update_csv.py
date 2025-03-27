@@ -1,44 +1,45 @@
 import os
 import re
-import pandas as pd
+import json
 import subprocess
+import pandas as pd
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
-MINIO_BUCKET = "automation/auth"
+MINIO_BUCKET = "automation"
 
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
 
-# List only `.html` files from MinIO
-cmd = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET} --name '*.html'"
-output = subprocess.getoutput(cmd)
-files = [line.strip() for line in output.split("\n") if line.strip()]
+# Get all folders in the automation bucket
+cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
+output = subprocess.getoutput(cmd_list_folders)
+folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
 
-# Filter only "full-report" files
-full_reports = [f for f in files if "full-report" in f]
+report_data = []
 
-if not full_reports:
-    print("❌ No full-report files found.")
-    exit(1)
+for folder in folders:
+    folder_path = f"{MINIO_BUCKET}/{folder}"
 
-# Sort files by modification time (latest first)
-full_reports.sort(key=lambda f: f.split("/")[-1], reverse=True)
-latest_report = full_reports[0]  # Pick the latest report
+    # List all full-report HTML files in the folder and get the latest one
+    cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
+    file_output = subprocess.getoutput(cmd_list_files)
 
-# Extract folder name
-parts = latest_report.split("/")
-folder_name = parts[2] if len(parts) > 2 else "unknown"
+    if not file_output.strip():
+        print(f"⚠️ No full-report found in {folder_path}, skipping.")
+        continue
 
-# Extract report details
-match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", latest_report)
+    file_info = json.loads(file_output)
+    file_name = file_info["key"]
 
-if match:
-    T, P, S, F, I, KI = match.groups()
-    report_data = [[folder_name, T, P, S, F, I, KI]]
-else:
-    print(f"❌ Failed to extract details from {latest_report}")
-    exit(1)
+    # Extract details from the file name
+    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+
+    if match:
+        T, P, S, F, I, KI = match.groups()
+        report_data.append([folder, T, P, S, F, I, KI])  # Store only folder name
+    else:
+        print(f"❌ Failed to extract details from {file_name}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Filename", "T", "P", "S", "F", "I", "KI"])
@@ -48,4 +49,4 @@ if not os.path.exists(os.path.dirname(csv_path)):
     os.makedirs(os.path.dirname(csv_path))
 
 df.to_csv(csv_path, index=False)
-print(f"✅ Updated {csv_path} with the latest full-report data.")
+print(f"✅ Updated {csv_path} with latest full-report data from all folders.")
