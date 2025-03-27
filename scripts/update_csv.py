@@ -19,30 +19,32 @@ folders = [folder.strip() for folder in folder_list_output.split("\n") if folder
 report_data = []
 
 for folder in folders:
-    # Find the latest HTML report in each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | sort -r | head -1"
-    latest_file = subprocess.getoutput(cmd_list_files).strip()
+    # Get all latest HTML reports inside each folder
+    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | sort -r"
+    files_output = subprocess.getoutput(cmd_list_files)
+    files = [line.strip() for line in files_output.split("\n") if line.strip()]
 
-    if not latest_file or "Object does not exist" in latest_file:
+    if not files:
         print(f"❌ No reports found for {folder}")
         continue
 
-    file_name = os.path.basename(latest_file)
+    for file_path in files:
+        file_name = os.path.basename(file_path)
 
-    # Extract language code for masterdata reports
-    if "masterdata" in file_name:
-        lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
-        module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
-    else:
-        module_name = folder  # Other folders use their folder name as module
+        # Extract language code for masterdata reports
+        if "masterdata" in file_name:
+            lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
+            module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
+        else:
+            module_name = folder  # Other folders use their folder name as module
 
-    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+        match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
 
-    if match:
-        T, P, S, F, I, KI = match.groups()
-        report_data.append([module_name, T, P, S, F, I, KI])
-    else:
-        print(f"❌ Failed to extract details from {file_name}")
+        if match:
+            T, P, S, F, I, KI = match.groups()
+            report_data.append([module_name, T, P, S, F, I, KI])
+        else:
+            print(f"❌ Failed to extract details from {file_name}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
