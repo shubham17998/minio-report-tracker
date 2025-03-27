@@ -1,70 +1,51 @@
 import os
 import re
-import json
 import pandas as pd
 import subprocess
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
-MINIO_BUCKET = "automation"
+MINIO_BUCKET = "automation/auth"
 
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
 
-# Get list of folders dynamically from MinIO
-cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}"
-output = subprocess.getoutput(cmd_list_folders)
-folders = []
+# List only `.html` files from MinIO
+cmd = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET} --name '*.html'"
+output = subprocess.getoutput(cmd)
+files = [line.strip() for line in output.split("\n") if line.strip()]
 
-# Parse JSON output to extract folder names
-for line in output.split("\n"):
-    try:
-        folder_info = json.loads(line)
-        if folder_info.get("type") == "folder":
-            folders.append(folder_info.get("key").strip("/"))  # Remove trailing slash
-    except json.JSONDecodeError:
-        print(f"❌ Failed to parse folder info: {line}")
+# Filter only "full-report" files
+full_reports = [f for f in files if "full-report" in f]
 
-# Data storage
-report_data = []
+if not full_reports:
+    print("❌ No full-report files found.")
+    exit(1)
 
-for folder in folders:
-    # List latest HTML file in each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' 2>/dev/null | sort -nr | head -1"
-    output = subprocess.getoutput(cmd_list_files).strip()
+# Sort files by modification time (latest first)
+full_reports.sort(key=lambda f: f.split("/")[-1], reverse=True)
+latest_report = full_reports[0]  # Pick the latest report
 
-    if not output or "No such file or directory" in output:
-        print(f"❌ No reports found for {folder}")
-        continue
+# Extract folder name
+parts = latest_report.split("/")
+folder_name = parts[2] if len(parts) > 2 else "unknown"
 
-    try:
-        timestamp, file_path = output.split(" ", 1)  # Extract timestamp and filename
-        file_name = os.path.basename(file_path)
+# Extract report details
+match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", latest_report)
 
-        # Ensure file exists before processing
-        verify_cmd = f"mc stat {MINIO_ALIAS}/{MINIO_BUCKET}/{folder}/{file_name} 2>/dev/null"
-        verify_output = subprocess.getoutput(verify_cmd).strip()
-
-        if "No such file" in verify_output or not verify_output:
-            print(f"❌ Skipping missing file: {file_name}")
-            continue
-
-        # Extract report details from filename
-        match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
-        if match:
-            T, P, S, F, I, KI = match.groups()
-            report_data.append([folder, file_name, T, P, S, F, I, KI])
-        else:
-            print(f"❌ Failed to extract details from {file_name}")
-    except ValueError:
-        print(f"❌ Error processing output: {output}")
+if match:
+    T, P, S, F, I, KI = match.groups()
+    report_data = [[folder_name, T, P, S, F, I, KI]]
+else:
+    print(f"❌ Failed to extract details from {latest_report}")
+    exit(1)
 
 # Create DataFrame
-df = pd.DataFrame(report_data, columns=["Module", "Filename", "T", "P", "S", "F", "I", "KI"])
+df = pd.DataFrame(report_data, columns=["Filename", "T", "P", "S", "F", "I", "KI"])
 
 # Save to CSV
 if not os.path.exists(os.path.dirname(csv_path)):
     os.makedirs(os.path.dirname(csv_path))
 
 df.to_csv(csv_path, index=False)
-print(f"✅ Updated {csv_path} with only the latest reports from each folder.")
+print(f"✅ Updated {csv_path} with the latest full-report data.")
