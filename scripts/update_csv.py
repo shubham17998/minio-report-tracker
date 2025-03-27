@@ -26,9 +26,10 @@ for folder in folders:
     # Get only the latest HTML report inside each folder
     cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' | sort -nr | awk '{{print $2}}' | head -1"
     latest_file = subprocess.getoutput(cmd_list_files).strip()
-    
-    if not latest_file:
-        print(f"❌ No reports found for {folder}")
+
+    # If an error message is returned instead of a filename, skip
+    if not latest_file or "cannot" in latest_file.lower():
+        print(f"❌ Failed to fetch latest report for {folder}. Error: {latest_file}")
         continue
 
     file_name = os.path.basename(latest_file)
