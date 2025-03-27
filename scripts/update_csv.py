@@ -11,43 +11,29 @@ MINIO_BUCKET = "automation"
 csv_path = "../spreadsheet/reports.csv"
 
 # Get all folders inside the automation bucket
-cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --json | jq -r '.key' | grep '/$' | sed 's:/$::'"
-folder_list_output = subprocess.getoutput(cmd_list_folders)
-folders = [folder.strip() for folder in folder_list_output.split("\n") if folder.strip()]
-
-if not folders:
-    print("❌ No folders found in the MinIO bucket.")
-    exit(1)
+cmd_list_folders = f"mc ls {MINIO_ALIAS}/{MINIO_BUCKET} --json"
+output = subprocess.getoutput(cmd_list_folders)
+folders = [line.split(' ')[-1].strip('/') for line in output.split('\n') if '"type":"folder"' in line]
 
 # Data storage
 report_data = []
 
 for folder in folders:
-    # Get only the latest HTML report inside each folder
-    cmd_list_files = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' --exec 'stat --format \"%Y %n\" {{}}' | sort -nr | awk '{{print $2}}' | head -1"
-    latest_file = subprocess.getoutput(cmd_list_files).strip()
+    # Get the latest report file
+    cmd_latest_file = f"mc find {MINIO_ALIAS}/{MINIO_BUCKET}/{folder} --name '*.html' | sort -r | head -1"
+    latest_file = subprocess.getoutput(cmd_latest_file).strip()
 
-    # If an error message is returned instead of a filename, skip
-    if not latest_file or "cannot" in latest_file.lower():
-        print(f"❌ Failed to fetch latest report for {folder}. Error: {latest_file}")
+    if not latest_file:
+        print(f"❌ Failed to fetch latest report for {folder}.")
         continue
-
-    file_name = os.path.basename(latest_file)
-
-    # Extract language code for masterdata reports
-    if "masterdata" in file_name:
-        lang_match = re.search(r"masterdata-([a-z]{3})", file_name)  # Extracts 'kan', 'hin', etc.
-        module_name = f"masterdata-{lang_match.group(1).capitalize()}" if lang_match else "masterdata"
-    else:
-        module_name = folder  # Other folders use their folder name as module
-
-    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
-
+    
+    match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", latest_file)
+    
     if match:
         T, P, S, F, I, KI = match.groups()
-        report_data.append([module_name, T, P, S, F, I, KI])
+        report_data.append([folder, T, P, S, F, I, KI])
     else:
-        print(f"❌ Failed to extract details from {file_name}")
+        print(f"❌ Failed to extract details from {latest_file}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
