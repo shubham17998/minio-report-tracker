@@ -21,35 +21,34 @@ report_data = []
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
 
-    # List full-report files
-if folder == "masterdata":
-    cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
-    file_output = subprocess.getoutput(cmd_list_files)
-    file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
-else:
-    cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
-    file_output = subprocess.getoutput(cmd_list_files)
-    file_lines = [file_output.strip()] if file_output.strip() else []
+    if folder == "masterdata":
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
+        file_output = subprocess.getoutput(cmd_list_files)
+        file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
+    else:
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
+        file_output = subprocess.getoutput(cmd_list_files)
+        file_lines = [file_output.strip()] if file_output.strip() else []
 
-if not file_lines:
-    print(f"⚠️ No full-report found in {folder_path}, skipping.")
-    continue
+    if not file_lines:
+        print(f"⚠️ No full-report found in {folder_path}, skipping.")
+        continue  # ✅ now correctly inside the loop
 
-for line in file_lines:
-    try:
-        file_info = json.loads(line)
-        file_name = file_info["key"]
+    for line in file_lines:
+        try:
+            file_info = json.loads(line)
+            file_name = file_info["key"]
 
-        # Extract details from the file name
-        match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+            # Extract details from the file name
+            match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
 
-        if match:
-            T, P, S, F, I, KI = match.groups()
-            report_data.append([folder, T, P, S, F, I, KI])
-        else:
-            print(f"❌ Failed to extract details from {file_name}")
-    except json.JSONDecodeError:
-        print(f"❌ Failed to parse JSON line: {line}")
+            if match:
+                T, P, S, F, I, KI = match.groups()
+                report_data.append([folder, T, P, S, F, I, KI])
+            else:
+                print(f"❌ Failed to extract details from {file_name}")
+        except json.JSONDecodeError:
+            print(f"❌ Failed to parse JSON line: {line}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
