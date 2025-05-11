@@ -21,6 +21,7 @@ report_data = []
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
 
+    # For 'masterdata', fetch top 6 full-report files
     if folder == "masterdata":
         cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
         file_output = subprocess.getoutput(cmd_list_files)
@@ -32,19 +33,27 @@ for folder in folders:
 
     if not file_lines:
         print(f"⚠️ No full-report found in {folder_path}, skipping.")
-        continue  # ✅ now correctly inside the loop
+        continue
 
     for line in file_lines:
         try:
             file_info = json.loads(line)
             file_name = file_info["key"]
 
-            # Extract details from the file name
+            # Extract T, P, S, F, I, KI
             match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
-
             if match:
                 T, P, S, F, I, KI = match.groups()
-                report_data.append([folder, T, P, S, F, I, KI])
+
+                if folder == "masterdata":
+                    # Extract language code from filename
+                    lang_match = re.search(r'masterdata-([a-z]{3})', file_name)
+                    lang = lang_match.group(1) if lang_match else "unknown"
+                    module_name = f"{folder}-{lang}"
+                else:
+                    module_name = folder
+
+                report_data.append([module_name, T, P, S, F, I, KI])
             else:
                 print(f"❌ Failed to extract details from {file_name}")
         except json.JSONDecodeError:
