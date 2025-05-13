@@ -12,44 +12,54 @@ MINIO_BUCKET = "automation"
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
 
-# Today's date
+# Get current date
 today = datetime.today().strftime('%Y-%m-%d')
 
 # Get all folders in the automation bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
-folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
 
+folders = []
+for line in output.strip().split("\n"):
+    try:
+        obj = json.loads(line)
+        if "key" in obj:
+            folders.append(obj["key"].strip("/"))
+    except json.JSONDecodeError:
+        continue
+
+# Prepare today's report data
 report_data = []
 
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
 
     if folder == "masterdata":
-        # Get latest 6 full-report files in masterdata
-        cmd_list_files_top6 = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
-        file_output_top6 = subprocess.getoutput(cmd_list_files_top6)
+        # Get top 6 full-report files for masterdata
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
+        file_output = subprocess.getoutput(cmd_list_files)
 
-        for line in file_output_top6.strip().split("\n"):
+        for line in file_output.strip().split("\n"):
             if not line.strip():
                 continue
-            file_info = json.loads(line)
-            file_name = file_info["key"]
-
-            # Extract language part
-            lang_match = re.search(r"masterdata-([a-z]+)", file_name)
-            lang = lang_match.group(1) if lang_match else "unknown"
-
-            module_name = f"masterdata-{lang}"
+            try:
+                file_info = json.loads(line)
+                file_name = file_info["key"]
+            except json.JSONDecodeError:
+                continue
 
             match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
-            if match:
+            lang_match = re.search(r"masterdata-([a-z]+)", file_name)
+
+            if match and lang_match:
                 T, P, S, F, I, KI = match.groups()
-                report_data.append([module_name, T, P, S, F, I, KI, today])
+                lang = lang_match.group(1)
+                module = f"masterdata-{lang}"
+                report_data.append([today, module, T, P, S, F, I, KI])
             else:
                 print(f"❌ Failed to extract details from {file_name}")
     else:
-        # Get latest full-report file for other folders
+        # Only get latest full-report
         cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
         file_output = subprocess.getoutput(cmd_list_files)
 
@@ -57,31 +67,32 @@ for folder in folders:
             print(f"⚠️ No full-report found in {folder_path}, skipping.")
             continue
 
-        file_info = json.loads(file_output)
-        file_name = file_info["key"]
+        try:
+            file_info = json.loads(file_output)
+            file_name = file_info["key"]
+        except json.JSONDecodeError:
+            continue
 
         match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
+
         if match:
             T, P, S, F, I, KI = match.groups()
-            report_data.append([folder, T, P, S, F, I, KI, today])
+            report_data.append([today, folder, T, P, S, F, I, KI])
         else:
             print(f"❌ Failed to extract details from {file_name}")
 
 # Create today's DataFrame
-new_df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI", "Date"])
+df_today = pd.DataFrame(report_data, columns=["Date", "Module", "T", "P", "S", "F", "I", "KI"])
 
-# Combine with existing CSV if it exists
-if os.path.exists(csv_path):
-    existing_df = pd.read_csv(csv_path)
-    final_df = pd.concat([new_df, existing_df], ignore_index=True)
-else:
-    final_df = new_df
-
-# Optional: Sort by Date (latest first), Module
-final_df.sort_values(by=["Date", "Module"], ascending=[False, True], inplace=True)
-
-# Save back to CSV
+# Create directory if needed
 os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-final_df.to_csv(csv_path, index=False)
 
-print(f"✅ Appended latest data to {csv_path} without losing previous records.")
+# Merge with existing CSV if exists
+if os.path.exists(csv_path):
+    df_old = pd.read_csv(csv_path)
+    df_combined = pd.concat([df_today, df_old], ignore_index=True)
+    df_combined.to_csv(csv_path, index=False)
+else:
+    df_today.to_csv(csv_path, index=False)
+
+print(f"✅ Updated {csv_path} with {len(df_today)} entries for {today}.")
