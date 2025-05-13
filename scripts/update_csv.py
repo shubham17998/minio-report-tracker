@@ -13,7 +13,7 @@ MINIO_BUCKET = "automation"
 csv_path = "../spreadsheet/reports.csv"
 
 # Today's date
-today = datetime.now().strftime("%Y-%m-%d")
+today = datetime.today().strftime('%Y-%m-%d')
 
 # Get all folders in the automation bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
@@ -26,28 +26,30 @@ for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
 
     if folder == "masterdata":
-        # Get latest 6 full-report files
-        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
-        file_output = subprocess.getoutput(cmd_list_files)
-        file_lines = file_output.strip().split("\n")
+        # Get latest 6 full-report files in masterdata
+        cmd_list_files_top6 = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
+        file_output_top6 = subprocess.getoutput(cmd_list_files_top6)
 
-        for line in file_lines:
+        for line in file_output_top6.strip().split("\n"):
             if not line.strip():
                 continue
             file_info = json.loads(line)
             file_name = file_info["key"]
 
-            # Extract sub-language from file name
+            # Extract language part
             lang_match = re.search(r"masterdata-([a-z]+)", file_name)
-            lang_suffix = lang_match.group(1) if lang_match else "unknown"
-            module_name = f"masterdata-{lang_suffix}"
+            lang = lang_match.group(1) if lang_match else "unknown"
+
+            module_name = f"masterdata-{lang}"
 
             match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
             if match:
                 T, P, S, F, I, KI = match.groups()
                 report_data.append([module_name, T, P, S, F, I, KI, today])
+            else:
+                print(f"❌ Failed to extract details from {file_name}")
     else:
-        # Get only the latest report file
+        # Get latest full-report file for other folders
         cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
         file_output = subprocess.getoutput(cmd_list_files)
 
@@ -68,16 +70,18 @@ for folder in folders:
 # Create today's DataFrame
 new_df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI", "Date"])
 
-# Append to existing CSV if it exists
+# Combine with existing CSV if it exists
 if os.path.exists(csv_path):
     existing_df = pd.read_csv(csv_path)
-    final_df = pd.concat([existing_df, new_df], ignore_index=True)
+    final_df = pd.concat([new_df, existing_df], ignore_index=True)
 else:
     final_df = new_df
 
-# Save back to CSV
-if not os.path.exists(os.path.dirname(csv_path)):
-    os.makedirs(os.path.dirname(csv_path))
+# Optional: Sort by Date (latest first), Module
+final_df.sort_values(by=["Date", "Module"], ascending=[False, True], inplace=True)
 
+# Save back to CSV
+os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 final_df.to_csv(csv_path, index=False)
-print(f"✅ Appended today's data to {csv_path}")
+
+print(f"✅ Appended latest data to {csv_path} without losing previous records.")
