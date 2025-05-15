@@ -14,15 +14,7 @@ csv_path = "../spreadsheet/reports.csv"
 # Get all folders in the automation bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
-
-folders = []
-for line in output.strip().split("\n"):
-    try:
-        entry = json.loads(line)
-        if entry.get("type") == "folder":
-            folders.append(entry["name"].strip("/"))
-    except json.JSONDecodeError:
-        print(f"❌ Invalid JSON line: {line}")
+folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
 
 report_data = []
 
@@ -31,15 +23,13 @@ for folder in folders:
 
     # For 'masterdata', fetch top 6 full-report files
     if folder == "masterdata":
-        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/"
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -6"
         file_output = subprocess.getoutput(cmd_list_files)
-        file_lines = [line for line in file_output.strip().split("\n") if 'full-report' in line]
-        file_lines = sorted(file_lines, reverse=True)[:6]
+        file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
     else:
-        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/"
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
         file_output = subprocess.getoutput(cmd_list_files)
-        file_lines = [line for line in file_output.strip().split("\n") if 'full-report' in line]
-        file_lines = sorted(file_lines, reverse=True)[:1]
+        file_lines = [file_output.strip()] if file_output.strip() else []
 
     if not file_lines:
         print(f"⚠️ No full-report found in {folder_path}, skipping.")
@@ -48,13 +38,15 @@ for folder in folders:
     for line in file_lines:
         try:
             file_info = json.loads(line)
-            file_name = file_info.get("name") or file_info.get("key")
+            file_name = file_info["key"]
 
+            # Extract T, P, S, F, I, KI
             match = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", file_name)
             if match:
                 T, P, S, F, I, KI = match.groups()
 
                 if folder == "masterdata":
+                    # Extract language code from filename
                     lang_match = re.search(r'masterdata-([a-z]{3})', file_name)
                     lang = lang_match.group(1) if lang_match else "unknown"
                     module_name = f"{folder}-{lang}"
@@ -63,9 +55,9 @@ for folder in folders:
 
                 report_data.append([module_name, T, P, S, F, I, KI])
             else:
-                print(f"❌ Failed to extract metrics from: {file_name}")
-        except Exception as e:
-            print(f"❌ Error parsing line: {line}\n{e}")
+                print(f"❌ Failed to extract details from {file_name}")
+        except json.JSONDecodeError:
+            print(f"❌ Failed to parse JSON line: {line}")
 
 # Create DataFrame
 df = pd.DataFrame(report_data, columns=["Module", "T", "P", "S", "F", "I", "KI"])
