@@ -24,7 +24,7 @@ for folder in folders:
 
     # For 'masterdata', fetch top 6 full-report files
     if folder == "masterdata":
-        cmd_list_files = f"mc ls --json ${MINIO_ALIAS}/${folder_path}/ | grep 'full-report' | sort -r | tail -n +7 | head -6"
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -12"
         file_output = subprocess.getoutput(cmd_list_files)
         file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
     else:
