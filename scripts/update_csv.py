@@ -30,7 +30,7 @@ for folder in folders:
     else:
         cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -2"
         file_output = subprocess.getoutput(cmd_list_files)
-        file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()] else []
+        file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
 
     if not file_lines:
         print(f"⚠️ No full-report found in {folder_path}, skipping.")
