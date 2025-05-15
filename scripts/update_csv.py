@@ -27,7 +27,7 @@ for folder in folders:
         file_output = subprocess.getoutput(cmd_list_files)
         file_lines = [line.strip() for line in file_output.strip().split("\n") if line.strip()]
     else:
-        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -2"
+        cmd_list_files = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -1"
         file_output = subprocess.getoutput(cmd_list_files)
         file_lines = [file_output.strip()] if file_output.strip() else []
 
