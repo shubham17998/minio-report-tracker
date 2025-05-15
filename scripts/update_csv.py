@@ -15,7 +15,7 @@ csv_path = "../spreadsheet/reports.csv"
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
 folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
-echo folders
+print(f"📁 Folders found: {folders}")
 
 report_data = []
 
