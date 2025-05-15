@@ -6,7 +6,7 @@ import pandas as pd
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
-MINIO_BUCKET = "apitestrig"
+MINIO_BUCKET = "automation"
 
 # CSV file path
 csv_path = "../spreadsheet/reports.csv"
