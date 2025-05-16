@@ -1,13 +1,13 @@
 Module,T,P,S,F,I,KI, , ,Module,T,P,S,F,I,KI   
-auth,612,583,0,24,5,0
-idrepo,410,325,0,1,84,0
-masterdata-kan,937,926,0,11,0,0
-masterdata-hin,937,926,0,11,0,0
-masterdata-tam,937,926,0,11,0,0
-masterdata-fra,937,926,0,11,0,0
-masterdata-ara,937,926,0,11,0,0
-masterdata-eng,937,931,0,6,0,0
-partner,935,534,255,134,0,12
-pms,935,534,255,134,0,12
-prereg,288,280,0,6,2,0
-resident,1126,1116,0,10,0,0
+auth,612,583,0,24,5,0, , ,auth,612,583,0,24,5,0
+idrepo,410,325,0,1,84,0, , ,idrepo,410,325,0,1,84,0
+masterdata-kan,937,926,0,11,0,0, , ,masterdata-kan,937,926,0,11,0,0
+masterdata-hin,937,926,0,11,0,0, , ,masterdata-hin,937,926,0,11,0,0
+masterdata-tam,937,926,0,11,0,0, , ,masterdata-tam,937,926,0,11,0,0
+masterdata-fra,937,926,0,11,0,0, , ,masterdata-fra,937,926,0,11,0,0
+masterdata-ara,937,926,0,11,0,0, , ,masterdata-ara,937,926,0,11,0,0
+masterdata-eng,937,931,0,6,0,0, , ,masterdata-eng,937,931,0,6,0,0
+partner,935,534,255,134,0,12, , ,partner,935,534,255,134,0,12
+pms,935,534,255,134,0,12, , ,pms,935,534,255,134,0,12
+prereg,288,280,0,6,2,0, , ,prereg,288,280,0,6,2,0
+resident,1126,1116,0,10,0,0, , ,resident,1126,1116,0,10,0,0
