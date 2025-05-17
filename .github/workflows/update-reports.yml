@@ -21,7 +21,7 @@ jobs:
         run: pip install boto3 pandas
 
       - name: Run update script
-        run: python scripts/automation_results_fetcher.py
+        run: python scripts/reports_fixes.py
 
       # ✅ Move reports.csv into the correct repo folder
       - name: Move reports.csv into the GitHub repo
