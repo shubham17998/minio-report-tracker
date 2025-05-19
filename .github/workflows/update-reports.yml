@@ -27,15 +27,15 @@ jobs:
       - name: Move reports.csv into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
-          mv -f ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv minio-report-tracker/spreadsheet/
+          mv -f ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports_wide.csv minio-report-tracker/spreadsheet/
 
       # ✅ Commit and Push Changes
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/spreadsheet/reports.csv
-          git commit -m "Auto-update reports.csv" --allow-empty || echo "No changes to commit"
+          git add minio-report-tracker/spreadsheet/reports_wide.csv
+          git commit -m "Auto-update reports_wide.csv" --allow-empty || echo "No changes to commit"
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
