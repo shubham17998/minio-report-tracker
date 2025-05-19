@@ -27,6 +27,8 @@ jobs:
       - name: Move reports.csv into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
+          pwd
+          ls
           mv -f ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports_wide.csv minio-report-tracker/spreadsheet/
 
       # ✅ Commit and Push Changes
