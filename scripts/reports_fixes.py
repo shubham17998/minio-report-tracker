@@ -34,7 +34,7 @@ def extract(rows, start, count, folder):
     return data
 
 alias = "myminio"; bucket = "automation"
-folders = […]  # your list here
+folders = []  # your list here
 
 rep1, rep2 = [], []
 for fld in folders:
