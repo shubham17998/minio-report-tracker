@@ -21,7 +21,7 @@ jobs:
         run: pip install boto3 pandas
 
       - name: Run update script
-        run: python scripts/reports_fixes.py
+        run: python scripts/mtimes_issue_fixes.py
 
       # ✅ Commit and Push Changes
       - name: Commit and Push Changes
