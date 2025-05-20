@@ -5,13 +5,11 @@ def fetch_reports(folder, alias, bucket):
     # 1) grab all lines
     out = subprocess.getoutput(f"mc ls --json {alias}/{bucket}/{folder}/")
     items = [json.loads(l) for l in out.splitlines() if l.strip()]
+    print(f"🔍 Found {len(items)} items in {folder}")
 
     # 2) filter to full‐reports that also have 'mtime'
-    full = [i for i in items if 'full-report' in i['key'] and 'mtime' in i]
-
-    # 3) sort by timestamp
-    full.sort(key=lambda i: i['mtime'], reverse=True)
-
+    full = [i for i in items if 'full-report' in i.get('key', '') and 'mtime' in i]
+    print(f"✅ {len(full)} full-reports with mtime in {folder}")
     return full
 
 def extract(rows, start, count, folder):
@@ -33,13 +31,17 @@ def extract(rows, start, count, folder):
         else:
             mod = folder
         data.append([mod, T, P, S, F, I, KI])
+    print(f"📦 Extracted {len(data)} records from {folder}")
     return data
 
+# Configuration
 alias = "myminio"
 bucket = "automation"
 folders = ["auth", "idrepo", "masterdata", "partner", "pms", "prereg", "resident"]
 
 rep1, rep2 = [], []
+
+# Process each folder
 for fld in folders:
     rows = fetch_reports(fld, alias, bucket)
     if fld == 'masterdata':
@@ -48,6 +50,10 @@ for fld in folders:
     else:
         rep1 += extract(rows, 0, 1, fld)    # most recent 1
         rep2 += extract(rows, 1, 1, fld)    # second most recent
+
+# Debug: Print data lengths
+print(f"📝 Total rows in rep1: {len(rep1)}")
+print(f"📝 Total rows in rep2: {len(rep2)}")
 
 # Build DataFrames
 cols = ["Module", "T", "P", "S", "F", "I", "KI"]
@@ -62,5 +68,6 @@ df_wide = pd.concat([df1.reset_index(drop=True),
                      df2.reset_index(drop=True)],
                     axis=1)
 
+# Write to CSV
 df_wide.to_csv("reports_wide.csv", index=False)
 print("✅ reports_wide.csv written with two tables correctly aligned.")
