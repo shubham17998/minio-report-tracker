@@ -69,33 +69,27 @@ for folder in folders:
             else:
                 mod = folder
 
-            target_list.append([mod, T, P, S, F, I, KI])
+            # Add date as first column in each row
+            date_val = extract_date_from_filename(fn)
+            target_list.append([date_val, mod, T, P, S, F, I, KI])
 
-            if not globals()[date_var]:
-                date_val = extract_date_from_filename(fn)
-                if date_val:
-                    globals()[date_var] = date_val
+            if not globals()[date_var] and date_val:
+                globals()[date_var] = date_val
+
+# Column names including Date
+columns_with_date = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
 # Convert to DataFrames
-columns = ["Module", "T", "P", "S", "F", "I", "KI"]
-df1 = pd.DataFrame(report_data_1, columns=columns)
-df2 = pd.DataFrame(report_data_2, columns=columns)
+df1 = pd.DataFrame(report_data_1, columns=columns_with_date)
+df2 = pd.DataFrame(report_data_2, columns=columns_with_date)
 
 # Add spacing columns
 df1[""] = ""
-df1[" "] = ""
+df2.insert(0, "", "")  # Adds an empty column at start of df2
 
 # Combine both DataFrames side-by-side
-df_combined = pd.concat([df1, df2], axis=1)
+df_combined = pd.concat([df1.reset_index(drop=True), df2.reset_index(drop=True)], axis=1)
 
-# Write date+header row manually
-with open(csv_path, "w") as f:
-    header_row = (
-        [date_str_1, "Module", "T", "P", "S", "F", "I", "KI"] +
-        ["", ""] +
-        [date_str_2, "Module", "T", "P", "S", "F", "I", "KI"]
-    )
-    f.write(",".join(header_row) + "\n")
-    df_combined.to_csv(f, index=False, header=False)
-
-print(f"✅ Date + header row written correctly. CSV saved to: {csv_path}")
+# Write to CSV (no extra date row this time)
+df_combined.to_csv(csv_path, index=False)
+print(f"✅ CSV with date inside header written to: {csv_path}")
