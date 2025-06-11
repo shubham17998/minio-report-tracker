@@ -34,7 +34,7 @@ jobs:
       - name: Move generated CSV into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
-          mv "spreadsheet/${{ env.CSV_FILE }}" minio-report-tracker/spreadsheet/
+          mv "../spreadsheet/${{ env.CSV_FILE }}" minio-report-tracker/spreadsheet/
 
       - name: Commit and Push Changes
         run: |
