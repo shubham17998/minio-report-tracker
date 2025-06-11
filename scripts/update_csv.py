@@ -9,22 +9,10 @@ from datetime import datetime
 MINIO_ALIAS = "myminio"
 MINIO_BUCKET = "apitestrig"
 
-# Dynamically extract part of the filename to use in CSV name
-sample_file_cmd = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/ | grep 'full-report' | head -n 1"
-sample_file_output = subprocess.getoutput(sample_file_cmd)
-
-try:
-    sample_file = json.loads(sample_file_output)["key"]
-    # Extract the portion between "mosip-api-internal." and "-auth"
-    match = re.search(r"mosip-api-internal\.([a-z0-9\-]+)-auth", sample_file)
-    if match:
-        csv_filename = f"{match.group(1)}.csv"
-    else:
-        csv_filename = "reports.csv"
-except (json.JSONDecodeError, KeyError):
-    csv_filename = "reports.csv"
-
-csv_path = f"../spreadsheet/{csv_filename}"
+columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+all_data_by_date = {}
+csv_filename = "reports.csv"  # default
+found_identifier = False
 
 # Get all folders from bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
@@ -37,9 +25,6 @@ for line in output.splitlines():
         continue
 
 print(f"📁 Folders found: {folders}")
-
-columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
-all_data_by_date = {}
 
 def extract_date_from_filename(filename):
     match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
@@ -58,8 +43,6 @@ for folder in folders:
         f"| grep 'full-report' | sort -r"
     )
     lines = subprocess.getoutput(cmd).splitlines()
-
-    reports_by_key = {}
 
     for line in lines:
         try:
@@ -82,6 +65,13 @@ for folder in folders:
             mod = f"{folder}-{lang.group(1)}" if lang else folder
         else:
             mod = folder
+
+        # Try to extract CSV filename just once
+        if not found_identifier:
+            match = re.search(r"mosip-api-internal\.([a-z0-9\-]+)-auth", fn)
+            if match:
+                csv_filename = f"{match.group(1)}.csv"
+                found_identifier = True
 
         date_key = format_date_str(date_obj)
         if date_key not in all_data_by_date:
@@ -109,6 +99,7 @@ for i in range(len(dfs)):
         dfs[i][" "] = ""
 
 # Step 4: Merge and save
+csv_path = f"../spreadsheet/{csv_filename}"
 final_df = pd.concat(dfs, axis=1)
 final_df.to_csv(csv_path, index=False)
 print(f"✅ CSV saved to: {csv_path}")
