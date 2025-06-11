@@ -8,7 +8,23 @@ from datetime import datetime
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
 MINIO_BUCKET = "apitestrig"
-csv_path = "../spreadsheet/reports.csv"
+
+# Dynamically extract part of the filename to use in CSV name
+sample_file_cmd = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/ | grep 'full-report' | head -n 1"
+sample_file_output = subprocess.getoutput(sample_file_cmd)
+
+try:
+    sample_file = json.loads(sample_file_output)["key"]
+    # Extract the portion between "mosip-api-internal." and "-auth"
+    match = re.search(r"mosip-api-internal\.([a-z0-9\-]+)-auth", sample_file)
+    if match:
+        csv_filename = f"{match.group(1)}.csv"
+    else:
+        csv_filename = "reports.csv"
+except (json.JSONDecodeError, KeyError):
+    csv_filename = "reports.csv"
+
+csv_path = f"../spreadsheet/{csv_filename}"
 
 # Get all folders from bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
