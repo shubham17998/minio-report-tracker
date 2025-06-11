@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 # MinIO alias and bucket
-MINIO_ALIAS = "myminio"
+MINIO_ALIAS = "qa-java21"
 MINIO_BUCKET = "apitestrig"
 
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
