@@ -1,0 +1,12 @@
+Date,Module,T,P,S,F,I,KI,, ,Date,Module,T,P,S,F,I,KI,, ,Date,Module,T,P,S,F,I,KI
+11-June-2025,masterdata-kan,945,930,0,0,15,0,,,10-June-2025,auth,612,583,0,24,5,0,,,09-June-2025,auth,612,580,3,24,5,0
+11-June-2025,masterdata-hin,945,930,0,0,15,0,,,10-June-2025,idrepo,414,329,0,7,78,0,,,09-June-2025,idrepo,414,329,0,7,78,0
+11-June-2025,masterdata-tam,945,930,0,0,15,0,,,10-June-2025,masterdata-kan,945,930,0,0,15,0,,,09-June-2025,masterdata-kan,945,930,0,0,15,0
+11-June-2025,masterdata-fra,945,930,0,0,15,0,,,10-June-2025,masterdata-hin,945,930,0,0,15,0,,,09-June-2025,masterdata-hin,945,930,0,0,15,0
+11-June-2025,masterdata-ara,945,930,0,0,15,0,,,10-June-2025,masterdata-tam,945,930,0,0,15,0,,,09-June-2025,masterdata-tam,945,930,0,0,15,0
+11-June-2025,masterdata-eng,945,945,0,0,0,0,,,10-June-2025,masterdata-fra,945,930,0,0,15,0,,,09-June-2025,masterdata-fra,945,930,0,0,15,0
+11-June-2025,partner,509,488,3,6,0,12,,,10-June-2025,masterdata-ara,945,930,0,0,15,0,,,09-June-2025,masterdata-ara,945,930,0,0,15,0
+11-June-2025,prereg,288,281,0,5,2,0,,,10-June-2025,masterdata-eng,945,945,0,0,0,0,,,09-June-2025,masterdata-eng,945,945,0,0,0,0
+,,,,,,,,,,10-June-2025,partner,996,992,0,4,0,0,,,09-June-2025,partner,996,992,0,4,0,0
+,,,,,,,,,,10-June-2025,prereg,288,281,0,5,2,0,,,09-June-2025,prereg,288,281,0,5,2,0
+,,,,,,,,,,10-June-2025,resident,1124,1124,0,0,0,0,,,09-June-2025,resident,1124,1124,0,0,0,0
