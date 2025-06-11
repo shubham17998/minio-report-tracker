@@ -88,11 +88,14 @@ df1[" "] = ""
 # Combine both DataFrames side-by-side
 df_combined = pd.concat([df1, df2], axis=1)
 
-# Write the date row manually (before headers)
+# Write date+header row manually
 with open(csv_path, "w") as f:
-    date_row = [date_str_1] + [""] * (len(columns) - 1) + ["", ""] + [date_str_2] + [""] * (len(columns) - 1)
-    f.write(",".join(date_row) + "\n")
+    header_row = (
+        [date_str_1, "Module", "T", "P", "S", "F", "I", "KI"] +
+        ["", ""] +
+        [date_str_2, "Module", "T", "P", "S", "F", "I", "KI"]
+    )
+    f.write(",".join(header_row) + "\n")
+    df_combined.to_csv(f, index=False, header=False)
 
-# Now append DataFrame (headers + data)
-df_combined.to_csv(csv_path, mode="a", index=False)
-print(f"✅ Date header written above column headers. CSV saved to: {csv_path}")
+print(f"✅ Date + header row written correctly. CSV saved to: {csv_path}")
