@@ -6,8 +6,10 @@ import pandas as pd
 from datetime import datetime
 
 # ✅ Multiple MinIO aliases
-MINIO_ALIASES = ["qa-java21", "dev3", "collab"]
+MINIO_ALIASES = ["qa-java21", "dev3"]
+# ✅ One or more possible buckets to try per alias
 MINIO_BUCKETS = ["apitestrig", "automation"]
+
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
 
@@ -15,9 +17,6 @@ def extract_date_from_filename(filename):
     match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
     if match:
         return datetime.strptime(match.group(1), "%Y-%m-%d")
-    match_alt = re.search(r"-(\d{13})-report", filename)
-    if match_alt:
-        return datetime.fromtimestamp(int(match_alt.group(1)) / 1000)
     return None
 
 
@@ -27,34 +26,35 @@ def format_date_str(dt):
 
 for MINIO_ALIAS in MINIO_ALIASES:
     all_data_by_date = {}
-    csv_filename = f"{MINIO_ALIAS}.csv"  # use alias directly for file name
-
-    # Try buckets in priority
+    csv_filename = f"{MINIO_ALIAS}.csv"  # Now based on alias
     bucket_found = False
-    for MINIO_BUCKET in MINIO_BUCKETS:
-        # Get all folders from bucket
-        cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
+
+    for bucket in MINIO_BUCKETS:
+        # Get all folders from the current bucket
+        cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{bucket}/"
         output = subprocess.getoutput(cmd_list_folders)
         folders = []
         for line in output.splitlines():
             try:
-                folders.append(json.loads(line)["key"].strip("/"))
+                json_obj = json.loads(line)
+                if "key" in json_obj:
+                    folders.append(json_obj["key"].strip("/"))
             except json.JSONDecodeError:
                 continue
 
         if folders:
+            print(f"📁 Folders found in {MINIO_ALIAS}/{bucket}: {folders}")
             bucket_found = True
-            print(f"\n📁 Folders found in {MINIO_ALIAS}/{MINIO_BUCKET}: {folders}")
-            break  # Use the first bucket that works
+            break  # ✅ Use the first bucket that has content
 
     if not bucket_found:
-        print(f"⚠️ No valid bucket found for {MINIO_ALIAS}, skipping...\n")
+        print(f"⚠️ No valid bucket found for alias: {MINIO_ALIAS}")
         continue
 
     # Step 1: Group latest reports by unique date
     for folder in folders:
-        folder_path = f"{MINIO_BUCKET}/{folder}"
-        cmd = f"mc ls --json {MINIO_ALIAS}/{folder_path}/"
+        folder_path = f"{bucket}/{folder}"
+        cmd = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'report_T-' | sort -r"
         lines = subprocess.getoutput(cmd).splitlines()
 
         for line in lines:
@@ -63,18 +63,22 @@ for MINIO_ALIAS in MINIO_ALIASES:
             except json.JSONDecodeError:
                 continue
 
-            fn = info["key"]
-            if not re.search(r"(?<!error-)report_T-", fn) and not "full-report_T-" in fn:
-                continue  # Only process full-report or normal report, skip error-report
+            fn = info.get("key", "")
+            if not fn or "error-report" in fn:
+                continue
+
+            # Match files ending in either full-report_T-... or -report_T-...
+            m = re.search(r"(?:full-)?report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)(?:_I-(\d+)_KI-(\d+))?", fn)
+            if not m:
+                continue
+
+            T, P, S, F = m.group(1), m.group(2), m.group(3), m.group(4)
+            I = m.group(5) if m.lastindex >= 5 and m.group(5) else "0"
+            KI = m.group(6) if m.lastindex >= 6 and m.group(6) else "0"
 
             date_obj = extract_date_from_filename(fn)
             if not date_obj:
                 continue
-
-            m = re.search(r"_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn)
-            if not m:
-                continue
-            T, P, S, F, I, KI = m.groups()
 
             if folder == "masterdata":
                 lang = re.search(r"masterdata-([a-z]{3})", fn)
@@ -90,9 +94,9 @@ for MINIO_ALIAS in MINIO_ALIASES:
             if not any(row[1] == mod for row in all_data_by_date[date_key]):
                 all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
-    # Step 2: Pick 2 latest dates
+    # Step 2: Pick 2-3 latest dates
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:2]
+    latest_dates = sorted_dates[:3]
 
     dfs = []
     for date in latest_dates:
@@ -100,7 +104,7 @@ for MINIO_ALIAS in MINIO_ALIASES:
         dfs.append(df)
 
     if not dfs:
-        print(f"⚠️ No report data found for alias: {MINIO_ALIAS}")
+        print(f"⚠️ No data found for alias: {MINIO_ALIAS}")
         continue
 
     # Step 3: Pad and align side-by-side
