@@ -3,6 +3,7 @@ import re
 import json
 import subprocess
 import pandas as pd
+from datetime import datetime
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
@@ -17,13 +18,14 @@ output = subprocess.getoutput(cmd_list_folders)
 folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
 print(f"📁 Folders found: {folders}")
 
-report_data_1 = []   # first table
-report_data_2 = []   # second table
+report_data_1 = []
+report_data_2 = []
+report_dates_1 = []
+report_dates_2 = []
 
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
 
-    # ——— FIRST PASS ———
     head_n = 6 if folder == "masterdata" else 1
     cmd1 = (
         f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
@@ -32,7 +34,6 @@ for folder in folders:
     )
     lines1 = subprocess.getoutput(cmd1).splitlines()
 
-    # ——— SECOND PASS ———
     if folder == "masterdata":
         cmd2 = (
             f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
@@ -47,25 +48,36 @@ for folder in folders:
         )
     lines2 = subprocess.getoutput(cmd2).splitlines()
 
-    # ——— PROCESS BOTH PASSES ———
-    for lines, target_list in ((lines1, report_data_1), (lines2, report_data_2)):
+    # Process both report sets
+    for lines, target_list, date_list in ((lines1, report_data_1, report_dates_1), (lines2, report_data_2, report_dates_2)):
         for line in lines:
             info = json.loads(line)
             fn = info["key"]
+
+            # Extract date (YYYY-MM-DD → 11-June-2025)
+            date_match = re.search(r"(\d{4}-\d{2}-\d{2})", fn)
+            if date_match:
+                date_str = date_match.group(1)
+                formatted_date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d-%B-%Y")
+            else:
+                formatted_date = ""
+
             m = re.search(
-                r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)",
-                fn
+                r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn
             )
             if not m:
                 continue
             T, P, S, F, I, KI = m.groups()
+
             if folder == "masterdata":
                 lang_match = re.search(r"masterdata-([a-z]{3})", fn)
                 lang = lang_match.group(1) if lang_match else "unk"
                 mod = f"{folder}-{lang}"
             else:
                 mod = folder
+
             target_list.append([mod, T, P, S, F, I, KI])
+            date_list.append(formatted_date)
 
 # Create DataFrames
 cols = ["Module", "T", "P", "S", "F", "I", "KI"]
@@ -75,10 +87,22 @@ df2 = pd.DataFrame(report_data_2, columns=cols)
 # Add spacing columns
 df1[""] = ""
 df1[" "] = ""
+df2.columns = df2.columns  # keep as is
 
-# Combine side by side
+# Merge side by side
 df_wide = pd.concat([df1, df2], axis=1, ignore_index=False)
 
-# Write to CSV
-df_wide.to_csv(csv_path, index=False)
-print(f"✅ Written wide-format CSV with two tables side-by-side to {csv_path}")
+# Create top row with dates (fill only first column of each table block)
+date_row = []
+date1 = report_dates_1[0] if report_dates_1 else ""
+date2 = report_dates_2[0] if report_dates_2 else ""
+date_row += [date1] + [""] * (len(cols) - 1)
+date_row += ["", ""]  # spacing
+date_row += [date2] + [""] * (len(cols) - 1)
+
+# Final DataFrame with date row at the top
+df_final = pd.concat([pd.DataFrame([date_row], columns=df_wide.columns), df_wide], ignore_index=True)
+
+# Save
+df_final.to_csv(csv_path, index=False)
+print(f"✅ Written wide-format CSV with date header to {csv_path}")
