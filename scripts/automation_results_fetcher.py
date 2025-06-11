@@ -22,11 +22,9 @@ report_data_2 = []   # second table
 
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
+
     # ——— FIRST PASS ———
-    if folder == "masterdata":
-        head_n = 6
-    else:
-        head_n = 1
+    head_n = 6 if folder == "masterdata" else 1
     cmd1 = (
         f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
         f"| grep 'full-report' | sort -r "
@@ -36,14 +34,12 @@ for folder in folders:
 
     # ——— SECOND PASS ———
     if folder == "masterdata":
-        # skip first 6, then take next 6 → 7–12
         cmd2 = (
             f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
             f"| grep 'full-report' | sort -r "
             f"| tail -n +7 | head -6"
         )
     else:
-        # take the 2nd most recent → head 2, then skip first
         cmd2 = (
             f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
             f"| grep 'full-report' | sort -r "
@@ -51,33 +47,38 @@ for folder in folders:
         )
     lines2 = subprocess.getoutput(cmd2).splitlines()
 
-for lines, target_list in ((lines1, report_data_1), (lines2, report_data_2)):
-    for line in lines:
-        info = json.loads(line)
-        fn = info["key"]
-        m = re.search(
-            r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)",
-            fn
-        )
-        if not m:
-            continue
-        T,P,S,F,I,KI = m.groups()
-        if folder=="masterdata":
-            lang = re.search(r"masterdata-([a-z]{3})", fn).group(1)
-            mod = f"{folder}-{lang}"
-        else:
-            mod = folder
-        target_list.append([mod, T, P, S, F, I, KI])
+    # ——— PROCESS BOTH PASSES ———
+    for lines, target_list in ((lines1, report_data_1), (lines2, report_data_2)):
+        for line in lines:
+            info = json.loads(line)
+            fn = info["key"]
+            m = re.search(
+                r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)",
+                fn
+            )
+            if not m:
+                continue
+            T, P, S, F, I, KI = m.groups()
+            if folder == "masterdata":
+                lang_match = re.search(r"masterdata-([a-z]{3})", fn)
+                lang = lang_match.group(1) if lang_match else "unk"
+                mod = f"{folder}-{lang}"
+            else:
+                mod = folder
+            target_list.append([mod, T, P, S, F, I, KI])
 
-# Create DataFrame
-cols = ["Module","T","P","S","F","I","KI"]
+# Create DataFrames
+cols = ["Module", "T", "P", "S", "F", "I", "KI"]
 df1 = pd.DataFrame(report_data_1, columns=cols)
 df2 = pd.DataFrame(report_data_2, columns=cols)
 
-df1[""]  = ""
-df1[""]  = ""
+# Add spacing columns
+df1[""] = ""
+df1[" "] = ""
 
+# Combine side by side
 df_wide = pd.concat([df1, df2], axis=1, ignore_index=False)
 
+# Write to CSV
 df_wide.to_csv(csv_path, index=False)
 print(f"✅ Written wide-format CSV with two tables side-by-side to {csv_path}")
