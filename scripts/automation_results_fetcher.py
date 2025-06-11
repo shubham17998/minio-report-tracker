@@ -10,7 +10,7 @@ MINIO_ALIAS = "myminio"
 MINIO_BUCKET = "apitestrig"
 csv_path = "../spreadsheet/reports.csv"
 
-# Step 1: Get folders from bucket
+# Get all folders from bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
 folders = [json.loads(line)["key"].strip("/") for line in output.splitlines() if line.strip()]
@@ -28,7 +28,7 @@ def extract_date_from_filename(filename):
         return datetime.strptime(match.group(1), "%Y-%m-%d").strftime("%d-%B-%Y")
     return ""
 
-# Step 2: Process each folder
+# Collect report data
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
     head_n = 6 if folder == "masterdata" else 1
@@ -76,26 +76,23 @@ for folder in folders:
                 if date_val:
                     globals()[date_var] = date_val
 
-# Step 3: Create dataframes
+# Convert to DataFrames
 columns = ["Module", "T", "P", "S", "F", "I", "KI"]
 df1 = pd.DataFrame(report_data_1, columns=columns)
 df2 = pd.DataFrame(report_data_2, columns=columns)
 
-# Step 4: Add empty columns for spacing
+# Add spacing columns
 df1[""] = ""
 df1[" "] = ""
 
-# Combine both tables side by side
+# Combine both DataFrames side-by-side
 df_combined = pd.concat([df1, df2], axis=1)
 
-# Step 5: Build final output with date row on top
-header_row = df_combined.columns.tolist()
-date_row = [date_str_1] + [""] * (len(columns) - 1) + ["", ""] + [date_str_2] + [""] * (len(columns) - 1)
+# Write the date row manually (before headers)
+with open(csv_path, "w") as f:
+    date_row = [date_str_1] + [""] * (len(columns) - 1) + ["", ""] + [date_str_2] + [""] * (len(columns) - 1)
+    f.write(",".join(date_row) + "\n")
 
-# Create final DataFrame with date row + header + data
-final_df = pd.DataFrame([date_row], columns=header_row)
-final_df = pd.concat([final_df, df_combined], ignore_index=True)
-
-# Step 6: Save
-final_df.to_csv(csv_path, index=False)
-print(f"✅ Written final CSV with date row above headers to {csv_path}")
+# Now append DataFrame (headers + data)
+df_combined.to_csv(csv_path, mode="a", index=False)
+print(f"✅ Date header written above column headers. CSV saved to: {csv_path}")
