@@ -9,58 +9,43 @@ from datetime import datetime
 MINIO_ALIAS = "myminio"
 MINIO_BUCKET = "apitestrig"
 
-# CSV file path
+# Output path
 csv_path = "../spreadsheet/reports.csv"
 
-# Get all folders in the automation bucket
+# Get all folders
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
 folders = [json.loads(line)["key"].strip("/") for line in output.split("\n") if line.strip()]
 print(f"📁 Folders found: {folders}")
 
-report_data_1 = []
-report_data_2 = []
-report_dates_1 = []
-report_dates_2 = []
+report_data_1, report_data_2 = [], []
+date_str_1, date_str_2 = "", ""
 
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
-
     head_n = 6 if folder == "masterdata" else 1
+
+    # First report set
     cmd1 = (
-        f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
-        f"| grep 'full-report' | sort -r "
-        f"| head -{head_n}"
+        f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -{head_n}"
     )
     lines1 = subprocess.getoutput(cmd1).splitlines()
 
+    # Second report set
     if folder == "masterdata":
         cmd2 = (
-            f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
-            f"| grep 'full-report' | sort -r "
-            f"| tail -n +7 | head -6"
+            f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | tail -n +7 | head -6"
         )
     else:
         cmd2 = (
-            f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
-            f"| grep 'full-report' | sort -r "
-            f"| head -2 | tail -1"
+            f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r | head -2 | tail -1"
         )
     lines2 = subprocess.getoutput(cmd2).splitlines()
 
-    # Process both report sets
-    for lines, target_list, date_list in ((lines1, report_data_1, report_dates_1), (lines2, report_data_2, report_dates_2)):
+    for lines, target_list, date_store in ((lines1, report_data_1, "date_str_1"), (lines2, report_data_2, "date_str_2")):
         for line in lines:
             info = json.loads(line)
             fn = info["key"]
-
-            # Extract date (YYYY-MM-DD → 11-June-2025)
-            date_match = re.search(r"(\d{4}-\d{2}-\d{2})", fn)
-            if date_match:
-                date_str = date_match.group(1)
-                formatted_date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d-%B-%Y")
-            else:
-                formatted_date = ""
 
             m = re.search(
                 r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn
@@ -70,39 +55,43 @@ for folder in folders:
             T, P, S, F, I, KI = m.groups()
 
             if folder == "masterdata":
-                lang_match = re.search(r"masterdata-([a-z]{3})", fn)
-                lang = lang_match.group(1) if lang_match else "unk"
-                mod = f"{folder}-{lang}"
+                lang = re.search(r"masterdata-([a-z]{3})", fn)
+                mod = f"{folder}-{lang.group(1)}" if lang else folder
             else:
                 mod = folder
 
             target_list.append([mod, T, P, S, F, I, KI])
-            date_list.append(formatted_date)
+
+            # Extract date once for each block
+            match_date = re.search(r"(\d{4}-\d{2}-\d{2})", fn)
+            if match_date:
+                formatted_date = datetime.strptime(match_date.group(1), "%Y-%m-%d").strftime("%d-%B-%Y")
+                if date_store == "date_str_1":
+                    date_str_1 = formatted_date
+                else:
+                    date_str_2 = formatted_date
 
 # Create DataFrames
 cols = ["Module", "T", "P", "S", "F", "I", "KI"]
 df1 = pd.DataFrame(report_data_1, columns=cols)
 df2 = pd.DataFrame(report_data_2, columns=cols)
 
-# Add spacing columns
-df1[""] = ""
-df1[" "] = ""
-df2.columns = df2.columns  # keep as is
+# Add space columns between tables
+spacer = [""] * len(df1)
+df1[""] = spacer
+df1[" "] = spacer
 
-# Merge side by side
-df_wide = pd.concat([df1, df2], axis=1, ignore_index=False)
+# Combine horizontally
+df_final = pd.concat([df1, df2], axis=1)
 
-# Create top row with dates (fill only first column of each table block)
-date_row = []
-date1 = report_dates_1[0] if report_dates_1 else ""
-date2 = report_dates_2[0] if report_dates_2 else ""
-date_row += [date1] + [""] * (len(cols) - 1)
-date_row += ["", ""]  # spacing
-date_row += [date2] + [""] * (len(cols) - 1)
+# Add date row ABOVE the header
+date_row = [date_str_1] + [""] * (len(cols) - 1) + ["", ""] + [date_str_2] + [""] * (len(cols) - 1)
+df_final.columns = pd.MultiIndex.from_tuples([("", c) for c in df_final.columns])  # preserve headers
 
-# Final DataFrame with date row at the top
-df_final = pd.concat([pd.DataFrame([date_row], columns=df_wide.columns), df_wide], ignore_index=True)
+# Insert date as first row manually
+df_final.columns = df_final.columns.droplevel(0)  # flatten header
+df_final = pd.concat([pd.DataFrame([date_row], columns=df_final.columns), df_final], ignore_index=True)
 
-# Save
+# Save CSV
 df_final.to_csv(csv_path, index=False)
-print(f"✅ Written wide-format CSV with date header to {csv_path}")
+print(f"✅ Final report with proper date row saved to {csv_path}")
