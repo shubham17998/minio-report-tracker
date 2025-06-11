@@ -1,35 +1,27 @@
 name: Update CSV via MinIO
-
 on:
   workflow_dispatch:
-
 jobs:
   update:
     runs-on: self-hosted
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Ensures full history is available
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
       - name: Install dependencies
         run: pip install boto3 pandas
-
       - name: Run update script
         run: |
           python scripts/update_csv.py
-
       - name: Move all generated CSVs into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
-
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
