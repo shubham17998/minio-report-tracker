@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 # ✅ Aliases to check
-MINIO_ALIASES = ["qa-java21", "dev3"]
+MINIO_ALIASES = ["qa-java21", "dev3", "collab"]
 
 # ✅ Bucket preference order
 PREFERRED_BUCKETS = ["apitestrig", "automation"]
