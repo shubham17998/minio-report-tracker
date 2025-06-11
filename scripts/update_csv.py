@@ -4,7 +4,6 @@ import json
 import subprocess
 import pandas as pd
 from datetime import datetime
-from collections import defaultdict
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
@@ -14,90 +13,86 @@ csv_path = "../spreadsheet/reports.csv"
 # Get all folders from bucket
 cmd_list_folders = f"mc ls --json {MINIO_ALIAS}/{MINIO_BUCKET}/"
 output = subprocess.getoutput(cmd_list_folders)
-folders = [json.loads(line)["key"].strip("/") for line in output.splitlines() if line.strip()]
+folders = []
+for line in output.splitlines():
+    try:
+        folders.append(json.loads(line)["key"].strip("/"))
+    except json.JSONDecodeError:
+        continue
+
 print(f"📁 Folders found: {folders}")
 
-# Helper functions
+columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+all_data_by_date = {}
+
 def extract_date_from_filename(filename):
     match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
     if match:
-        return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+        return datetime.strptime(match.group(1), "%Y-%m-%d")
     return None
 
-def format_date(dt):
+def format_date_str(dt):
     return dt.strftime("%d-%B-%Y")
 
-# Storage for reports
-data_by_date = defaultdict(list)
-
-# Collect report data
+# Step 1: Group latest reports by unique date
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
-    head_n = 6 if folder == "masterdata" else 1
-
-    # FIRST PASS
-    cmd1 = (
+    cmd = (
         f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
-        f"| grep 'full-report' | sort -r "
+        f"| grep 'full-report' | sort -r"
     )
-    lines1 = subprocess.getoutput(cmd1).splitlines()
+    lines = subprocess.getoutput(cmd).splitlines()
 
-    # Parse and group by date
-    date_file_map = defaultdict(list)
-    for line in lines1:
-        info = json.loads(line)
-        fn = info["key"]
-        date = extract_date_from_filename(fn)
-        if not date:
+    reports_by_key = {}
+
+    for line in lines:
+        try:
+            info = json.loads(line)
+        except json.JSONDecodeError:
             continue
-        date_file_map[date].append(fn)
 
-    # Keep top 3 most recent dates
-    for date in sorted(date_file_map.keys(), reverse=True)[:3]:
-        for fn in sorted(date_file_map[date], reverse=True):
-            m = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn)
-            if not m:
-                continue
-            T, P, S, F, I, KI = m.groups()
+        fn = info["key"]
+        date_obj = extract_date_from_filename(fn)
+        if not date_obj:
+            continue
 
-            if folder == "masterdata":
-                lang = re.search(r"masterdata-([a-z]{3})", fn)
-                mod = f"{folder}-{lang.group(1)}" if lang else folder
-            else:
-                mod = folder
+        m = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn)
+        if not m:
+            continue
+        T, P, S, F, I, KI = m.groups()
 
-            data_by_date[date].append([mod, T, P, S, F, I, KI])
+        if folder == "masterdata":
+            lang = re.search(r"masterdata-([a-z]{3})", fn)
+            mod = f"{folder}-{lang.group(1)}" if lang else folder
+        else:
+            mod = folder
 
-# Create CSV output
-columns = ["Module", "T", "P", "S", "F", "I", "KI"]
+        date_key = format_date_str(date_obj)
+        if date_key not in all_data_by_date:
+            all_data_by_date[date_key] = []
+
+        # Avoid duplicates per module per date
+        if not any(row[1] == mod for row in all_data_by_date[date_key]):
+            all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
+
+# Step 2: Pick 3 latest dates and prepare DataFrames
+sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
+latest_dates = sorted_dates[:3]
+
 dfs = []
-date_labels = []
-
-for date in sorted(data_by_date.keys(), reverse=True):
-    df = pd.DataFrame(data_by_date[date], columns=columns)
-    df[" "] = ""
-    df["  "] = ""
+for date in latest_dates:
+    df = pd.DataFrame(all_data_by_date[date], columns=columns)
     dfs.append(df)
-    date_labels.append(format_date(date))
 
-# Merge DataFrames side-by-side
-df_combined = pd.concat(dfs, axis=1)
+# Step 3: Pad and align side-by-side
+max_len = max(len(df) for df in dfs)
+for i in range(len(dfs)):
+    dfs[i] = dfs[i].reindex(range(max_len))
+    if i < len(dfs) - 1:
+        dfs[i][""] = ""
+        dfs[i][" "] = ""
 
-# Write with date row and headers
-with open(csv_path, "w") as f:
-    date_row = []
-    for label in date_labels:
-        date_row += [label] + [""] * (len(columns) - 1) + ["", ""]
-    f.write(",".join(date_row) + "\n")
-
-# Combine column headers for each date block
-header_row = []
-for _ in date_labels:
-    header_row += columns + ["", ""]
-
-with open(csv_path, "a") as f:
-    f.write(",".join(header_row) + "\n")
-
-# Append data
-df_combined.to_csv(csv_path, mode="a", index=False)
-print(f"✅ Saved reports for top 3 recent dates to: {csv_path}")
+# Step 4: Merge and save
+final_df = pd.concat(dfs, axis=1)
+final_df.to_csv(csv_path, index=False)
+print(f"✅ CSV saved to: {csv_path}")
