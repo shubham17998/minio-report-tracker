@@ -4,6 +4,7 @@ import json
 import subprocess
 import pandas as pd
 from datetime import datetime
+from collections import defaultdict
 
 # MinIO alias and bucket
 MINIO_ALIAS = "myminio"
@@ -16,80 +17,87 @@ output = subprocess.getoutput(cmd_list_folders)
 folders = [json.loads(line)["key"].strip("/") for line in output.splitlines() if line.strip()]
 print(f"📁 Folders found: {folders}")
 
+# Helper functions
 def extract_date_from_filename(filename):
     match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
     if match:
-        return datetime.strptime(match.group(1), "%Y-%m-%d").strftime("%d-%B-%Y")
-    return ""
+        return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    return None
 
-def parse_reports(lines, folder):
-    report_rows = []
-    for line in lines:
-        info = json.loads(line)
-        fn = info["key"]
+def format_date(dt):
+    return dt.strftime("%d-%B-%Y")
 
-        m = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn)
-        if not m:
-            continue
-        T, P, S, F, I, KI = m.groups()
+# Storage for reports
+data_by_date = defaultdict(list)
 
-        if folder == "masterdata":
-            lang = re.search(r"masterdata-([a-z]{3})", fn)
-            mod = f"{folder}-{lang.group(1)}" if lang else folder
-        else:
-            mod = folder
-
-        date_str = extract_date_from_filename(fn)
-        report_rows.append((date_str, [mod, T, P, S, F, I, KI]))
-    return report_rows
-
-all_rows = []
-
+# Collect report data
 for folder in folders:
     folder_path = f"{MINIO_BUCKET}/{folder}"
+    head_n = 6 if folder == "masterdata" else 1
 
-    cmd_all = f"mc ls --json {MINIO_ALIAS}/{folder_path}/ | grep 'full-report' | sort -r"
-    lines_all = subprocess.getoutput(cmd_all).splitlines()
+    # FIRST PASS
+    cmd1 = (
+        f"mc ls --json {MINIO_ALIAS}/{folder_path}/ "
+        f"| grep 'full-report' | sort -r "
+    )
+    lines1 = subprocess.getoutput(cmd1).splitlines()
 
-    if folder == "masterdata":
-        # Group by date and collect max 6 per date
-        date_grouped = {}
-        for line in lines_all:
-            info = json.loads(line)
-            fn = info["key"]
-            report_date = extract_date_from_filename(fn)
-            if not report_date:
+    # Parse and group by date
+    date_file_map = defaultdict(list)
+    for line in lines1:
+        info = json.loads(line)
+        fn = info["key"]
+        date = extract_date_from_filename(fn)
+        if not date:
+            continue
+        date_file_map[date].append(fn)
+
+    # Keep top 3 most recent dates
+    for date in sorted(date_file_map.keys(), reverse=True)[:3]:
+        for fn in sorted(date_file_map[date], reverse=True):
+            m = re.search(r"full-report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)_I-(\d+)_KI-(\d+)", fn)
+            if not m:
                 continue
-            if report_date not in date_grouped:
-                date_grouped[report_date] = []
-            if len(date_grouped[report_date]) < 6:
-                date_grouped[report_date].append(line)
+            T, P, S, F, I, KI = m.groups()
 
-        for date in sorted(date_grouped.keys(), reverse=True)[:3]:
-            all_rows.extend(parse_reports(date_grouped[date], folder))
-    else:
-        # Pick only 1 per recent 3 unique dates
-        date_to_report = {}
-        for line in lines_all:
-            info = json.loads(line)
-            fn = info["key"]
-            report_date = extract_date_from_filename(fn)
-            if report_date and report_date not in date_to_report:
-                date_to_report[report_date] = line
-            if len(date_to_report) >= 3:
-                break
-        all_rows.extend(parse_reports(date_to_report.values(), folder))
+            if folder == "masterdata":
+                lang = re.search(r"masterdata-([a-z]{3})", fn)
+                mod = f"{folder}-{lang.group(1)}" if lang else folder
+            else:
+                mod = folder
 
-# Sort all rows by date (descending)
-all_rows.sort(reverse=True, key=lambda x: datetime.strptime(x[0], "%d-%B-%Y"))
+            data_by_date[date].append([mod, T, P, S, F, I, KI])
 
-# Write to CSV
+# Create CSV output
+columns = ["Module", "T", "P", "S", "F", "I", "KI"]
+dfs = []
+date_labels = []
+
+for date in sorted(data_by_date.keys(), reverse=True):
+    df = pd.DataFrame(data_by_date[date], columns=columns)
+    df[" "] = ""
+    df["  "] = ""
+    dfs.append(df)
+    date_labels.append(format_date(date))
+
+# Merge DataFrames side-by-side
+df_combined = pd.concat(dfs, axis=1)
+
+# Write with date row and headers
 with open(csv_path, "w") as f:
-    current_date = ""
-    for date, row in all_rows:
-        if date != current_date:
-            current_date = date
-            f.write(f"Date,Module,T,P,S,F,I,KI\n")
-        f.write(f"{date},{','.join(row)}\n")
+    date_row = []
+    for label in date_labels:
+        date_row += [label] + [""] * (len(columns) - 1) + ["", ""]
+    f.write(",".join(date_row) + "\n")
 
-print(f"✅ Final CSV with grouped 3 recent unique dates saved at: {csv_path}")
+# Combine column headers for each date block
+header_row = []
+for _ in date_labels:
+    header_row += columns + ["", ""]
+
+with open(csv_path, "a") as f:
+    f.write(",".join(header_row) + "\n")
+
+# Append data
+df_combined.to_csv(csv_path, mode="a", index=False)
+print(f"✅ Saved reports for top 3 recent dates to: {csv_path}")
