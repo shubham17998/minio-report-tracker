@@ -6,6 +6,7 @@ on:
 jobs:
   update:
     runs-on: self-hosted
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -20,22 +21,27 @@ jobs:
       - name: Install dependencies
         run: pip install boto3 pandas
 
-      - name: Run update script
-        run: python scripts/update_csv.py
+      - name: Run update script and capture filename
+        id: run_script
+        run: |
+          python scripts/update_csv.py > script_output.log
+          echo "✅ Script ran successfully."
 
-      # ✅ Move reports.csv into the correct repo folder
-      - name: Move reports.csv into the GitHub repo
+          # Extract the filename from script output
+          CSV_FILE=$(grep -oP '(?<=CSV saved to: ).*\.csv' script_output.log | xargs basename)
+          echo "CSV_FILE=$CSV_FILE" >> $GITHUB_ENV
+
+      - name: Move generated CSV into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
-          mv -f ~/actions-runner/_work/minio-report-tracker/spreadsheet/reports.csv minio-report-tracker/spreadsheet/
+          mv "spreadsheet/${{ env.CSV_FILE }}" minio-report-tracker/spreadsheet/
 
-      # ✅ Commit and Push Changes
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/spreadsheet/reports.csv
-          git commit -m "Auto-update reports.csv" --allow-empty || echo "No changes to commit"
+          git add "minio-report-tracker/spreadsheet/${{ env.CSV_FILE }}"
+          git commit -m "Auto-update ${{ env.CSV_FILE }}" --allow-empty || echo "No changes to commit"
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
