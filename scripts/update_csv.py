@@ -83,7 +83,7 @@ for folder in folders:
 
 # Step 2: Pick 3 latest dates and prepare DataFrames
 sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-latest_dates = sorted_dates[:3]
+latest_dates = sorted_dates[:2]
 
 dfs = []
 for date in latest_dates:
