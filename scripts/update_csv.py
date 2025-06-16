@@ -81,9 +81,9 @@ for alias in MINIO_ALIASES:
             if not any(row[1] == mod for row in all_data_by_date[date_key]):
                 all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
-    # Step 2: Pick latest 3 dates
+    # Step 2: Pick latest N dates
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:3]
+    latest_dates = sorted_dates[:2]
 
     dfs = []
     for date in latest_dates:
