@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 # ✅ Multiple MinIO aliases and default bucket
-MINIO_ALIASES = ["qa-java21", "dev3", "collab", "dev", "dev-int", "released"]
+MINIO_ALIASES = ["qa-java21", "dev3", "collab", "dev", "dev-int", "released", "cellbox21"]
 MINIO_BUCKETS = ["apitestrig", "automation"]
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
