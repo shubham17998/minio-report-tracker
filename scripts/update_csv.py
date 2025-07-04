@@ -57,7 +57,6 @@ for alias in MINIO_ALIASES:
                 # ✅ Only one DSL entry per date
                 if not any(row[1] == "dsl" for row in all_data_by_date[date_key]):
                     all_data_by_date[date_key].append([date_key, "dsl", T, P, S, F, I, KI])
-                    print(f"✅ DSL report added: {fn} ({date_key})")
 
             continue  # move to next bucket
 
