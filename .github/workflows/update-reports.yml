@@ -10,9 +10,10 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout repo
+      - name: Checkout `reporting` branch
         uses: actions/checkout@v4
         with:
+          ref: reporting   # 👈 checks out the reporting branch (not master)
           fetch-depth: 0
 
       - name: Set up Python
@@ -26,7 +27,7 @@ jobs:
       - name: Run update script
         run: python scripts/update_csv.py
 
-      - name: Remove all old CSVs from Git repo folder
+      - name: Remove all old CSVs from Git folder
         run: |
           rm -f minio-report-tracker/spreadsheet/*.csv
           git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old files to remove"
@@ -36,10 +37,10 @@ jobs:
           mkdir -p minio-report-tracker/spreadsheet
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
 
-      - name: Commit and Push Changes
+      - name: Commit and Push Changes to reporting branch
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/spreadsheet/*.csv
           git commit -m "Latest Testrigs reports updated for the environment" --allow-empty || echo "✅ No changes to commit"
-          git push origin master
+          git push origin reporting
