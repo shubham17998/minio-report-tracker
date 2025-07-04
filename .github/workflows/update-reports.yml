@@ -1,33 +1,44 @@
 name: Update CSV via MinIO
+
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '15 4 * * 1-5'  # Runs at 9:45 AM IST, Monday to Friday
+
 jobs:
   update:
     runs-on: self-hosted
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensures full history is available
+          fetch-depth: 0  # Ensures full history for commits
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
       - name: Install dependencies
         run: pip install boto3 pandas
+
       - name: Run update script
         run: |
           python scripts/update_csv.py
+
       - name: Move all generated CSVs into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
+          rm -f minio-report-tracker/spreadsheet/*.csv || true
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
+
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/spreadsheet/*.csv
-          git commit -m "Auto-update all alias CSVs" --allow-empty || echo "No changes to commit"
+          git commit -m "Latest Testrigs reports synced across all environments" --allow-empty || echo "No changes to commit"
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
