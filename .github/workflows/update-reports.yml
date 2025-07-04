@@ -1,9 +1,9 @@
 name: Update CSV via MinIO
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '15 4 * * 1-5'  # Runs at 9:45 AM IST, Monday to Friday
+    - cron: '15 4 * * 1-5'  # Runs at 9:45 AM IST (UTC +5:30)
+  workflow_dispatch:
 
 jobs:
   update:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensures full history for commits
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,13 +24,14 @@ jobs:
         run: pip install boto3 pandas
 
       - name: Run update script
-        run: |
-          python scripts/update_csv.py
+        run: python scripts/update_csv.py
 
-      - name: Move all generated CSVs into the GitHub repo
+      - name: Clean previous CSVs from repo
+        run: rm -f minio-report-tracker/spreadsheet/*.csv
+
+      - name: Move all newly generated CSVs into the GitHub repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
-          rm -f minio-report-tracker/spreadsheet/*.csv || true
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
 
       - name: Commit and Push Changes
@@ -38,7 +39,7 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/spreadsheet/*.csv
-          git commit -m "Latest Testrigs reports synced across all environments" --allow-empty || echo "No changes to commit"
+          git commit -m "Latest Testrigs reports synced across all environments" --allow-empty || echo "✅ No changes to commit"
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
