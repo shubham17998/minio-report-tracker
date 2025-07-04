@@ -21,6 +21,7 @@ for alias in MINIO_ALIASES:
     for bucket in MINIO_BUCKETS:
         folders.clear()
 
+        # 🟡 DSLREPORTS block
         if bucket == "dslreports":
             cmd_list_dsl_full = f"mc ls --json {alias}/dslreports/full/"
             output = subprocess.getoutput(cmd_list_dsl_full)
@@ -29,6 +30,11 @@ for alias in MINIO_ALIASES:
                 try:
                     info = json.loads(line)
                     fn = info["key"]
+
+                    # ❌ Skip ExtentReport-prefixed files
+                    if fn.startswith("ExtentReport-"):
+                        continue
+
                     ts = info["lastModified"]
                     date_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
                 except (json.JSONDecodeError, KeyError, ValueError):
@@ -48,11 +54,14 @@ for alias in MINIO_ALIASES:
                 if date_key not in all_data_by_date:
                     all_data_by_date[date_key] = []
 
-                all_data_by_date[date_key].append([date_key, "dsl", T, P, S, F, I, KI])
-                print(f"✅ DSL report added: {fn} ({date_key})")
-            continue  # skip to next bucket
+                # ✅ Only one DSL entry per date
+                if not any(row[1] == "dsl" for row in all_data_by_date[date_key]):
+                    all_data_by_date[date_key].append([date_key, "dsl", T, P, S, F, I, KI])
+                    print(f"✅ DSL report added: {fn} ({date_key})")
 
-        # for apitestrig & automation buckets
+            continue  # move to next bucket
+
+        # 🟡 Other buckets (apitestrig, automation)
         cmd_list_folders = f"mc ls --json {alias}/{bucket}/"
         output = subprocess.getoutput(cmd_list_folders)
 
@@ -106,9 +115,9 @@ for alias in MINIO_ALIASES:
                 if not any(row[1] == mod for row in all_data_by_date[date_key]):
                     all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
-    # Sort and get latest 5 dates
+    # 🔽 Sort and pick latest dates
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:5]
+    latest_dates = sorted_dates[:1]
 
     dfs = []
     for date in latest_dates:
@@ -119,6 +128,7 @@ for alias in MINIO_ALIASES:
         print(f"⚠️ No report data extracted for alias: {alias}")
         continue
 
+    # 🧱 Pad and align
     max_len = max(len(df) for df in dfs)
     for i in range(len(dfs)):
         dfs[i] = dfs[i].reindex(range(max_len))
@@ -126,6 +136,7 @@ for alias in MINIO_ALIASES:
             dfs[i][""] = ""
             dfs[i][" "] = ""
 
+    # 💾 Save CSV
     os.makedirs("../spreadsheet", exist_ok=True)
     csv_path = f"../spreadsheet/{csv_filename}"
     final_df = pd.concat(dfs, axis=1)
