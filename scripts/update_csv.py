@@ -5,7 +5,7 @@ import subprocess
 import pandas as pd
 from datetime import datetime
 
-MINIO_ALIASES = ["cellbox21"]
+MINIO_ALIASES = ["cellbox21", "dev-int"]
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports"]
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
