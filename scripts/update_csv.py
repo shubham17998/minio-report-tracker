@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 # ✅ All MinIO aliases and buckets
-MINIO_ALIASES = ["cellbox21"]
+MINIO_ALIASES = ["qa-java21", "dev3", "collab", "dev", "dev-int", "released", "cellbox21"]
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports"]
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
@@ -28,6 +28,7 @@ for alias in MINIO_ALIASES:
             cmd_list_dsl_full = f"mc ls --json {alias}/dslreports/full/"
             output = subprocess.getoutput(cmd_list_dsl_full)
 
+            found_dsl = False
             for line in output.splitlines():
                 try:
                     info = json.loads(line)
@@ -53,6 +54,12 @@ for alias in MINIO_ALIASES:
 
                 if not any(row[1] == "dsl" for row in all_data_by_date[date_key]):
                     all_data_by_date[date_key].append([date_key, "dsl", T, P, S, F, I, KI])
+                    found_dsl = True
+
+            if found_dsl:
+                print(f"📁 DSL reports found in {alias}/dslreports/full")
+            else:
+                print(f"⚠️ No DSL reports found in {alias}/dslreports/full")
             continue  # skip rest of logic for dslreports
 
         # ✅ Default logic for other buckets (apitestrig, automation)
@@ -71,7 +78,7 @@ for alias in MINIO_ALIASES:
             break
 
     if not bucket_used:
-        print(f"⚠️ No valid buckets found for alias {alias}")
+        print(f"⚠️ No valid folders found in any default buckets for alias {alias}")
         continue
 
     for folder in folders:
@@ -115,9 +122,9 @@ for alias in MINIO_ALIASES:
             if not any(row[1] == mod for row in all_data_by_date[date_key]):
                 all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
-    # ✅ Step 2: Pick latest 5 dates
+    # ✅ Step 2: Pick latest dates
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:5]
+    latest_dates = sorted_dates[:1]
 
     dfs = []
     for date in latest_dates:
