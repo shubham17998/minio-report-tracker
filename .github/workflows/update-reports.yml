@@ -43,5 +43,3 @@ jobs:
           git add minio-report-tracker/spreadsheet/*.csv
           git commit -m "Latest Testrigs reports updated for the environment" --allow-empty || echo "✅ No changes to commit"
           git push origin master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
