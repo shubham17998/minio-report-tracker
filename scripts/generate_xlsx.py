@@ -5,91 +5,98 @@ from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
 
-def load_and_normalize_data(input_file):
-    rows = []
-    with open(input_file, 'r') as f:
-        for line in f:
-            if "Date" in line or not line.strip():
-                continue
-            parts = [p.strip() for p in line.strip().split(',') if p.strip()]
-            for i in range(0, len(parts), 8):
-                if i + 7 < len(parts):
-                    row = parts[i:i + 8]
-                    rows.append(row)
+# Input and output directories
+spreadsheet_dir = "minio-report-tracker/spreadsheet"
+output_dir = "minio-report-tracker/xlxs"
 
-    df = pd.DataFrame(rows, columns=["Date", "Module", "T", "P", "S", "F", "I", "KI"])
-    df = df[df["Date"].str.contains(r'\d{1,2}-[A-Za-z]+-\d{4}', na=False)]
-    df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y")
+os.makedirs(output_dir, exist_ok=True)
+
+def process_csv_file(csv_file):
+    df = pd.read_csv(csv_file)
+
+    # Clean empty columns (from padding logic)
+    df = df.loc[:, ~df.columns.str.match(r'^\s*$')]
+
+    # Convert Date column to datetime
+    df["Date"] = pd.to_datetime(df["Date"], errors='coerce', dayfirst=True)
+    df = df.dropna(subset=["Date"])
+
+    # Convert numeric columns
     for col in ["T", "P", "S", "F", "I", "KI"]:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     return df
 
-def get_output_folder(df, alias):
-    start_date = df["Date"].min().strftime("%d-%B-%Y")
-    end_date = df["Date"].max().strftime("%d-%B-%Y")
-    folder_name = f"xlxs/api-test-rig-{alias}-{start_date}_to_{end_date}"
-    os.makedirs(folder_name, exist_ok=True)
-    return folder_name
+def generate_graphs(df, module_name, output_path):
+    module_df = df[df["Module"] == module_name].sort_values("Date")
+    plt.figure(figsize=(10, 5))
 
-def generate_graphs(df, output_dir):
-    modules = df["Module"].unique()
-    graph_files = []
+    plt.plot(module_df["Date"], module_df["T"], label="Total", color="blue", marker='o')
+    plt.plot(module_df["Date"], module_df["P"], label="Passed", color="green", marker='o')
+    plt.plot(module_df["Date"], module_df["F"], label="Failed", color="red", marker='o')
 
-    for module in modules:
-        module_df = df[df["Module"] == module].sort_values("Date")
+    plt.title(f"Trend for Module: {module_name}")
+    plt.xlabel("Date")
+    plt.ylabel("Count")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
 
-        plt.figure(figsize=(10, 5))
-        plt.plot(module_df["Date"], module_df["T"], label="Total", linewidth=2, color='blue', marker='o')
-        plt.plot(module_df["Date"], module_df["P"], label="Passed", linewidth=2.5, color='green', marker='o')
-        plt.plot(module_df["Date"], module_df["F"], label="Failed", linewidth=2.5, color='red', marker='o')
-        plt.title(f"Trend for Module: {module}", fontsize=14)
-        plt.xlabel("Date", fontsize=12)
-        plt.ylabel("Count", fontsize=12)
-        plt.grid(True, linestyle='--', alpha=0.5)
-        plt.legend()
-        plt.tight_layout()
+    graph_path = os.path.join(output_path, f"{module_name}_trend.png")
+    plt.savefig(graph_path)
+    plt.close()
 
-        file_path = os.path.join(output_dir, f"{module}_trend.png")
-        plt.savefig(file_path)
-        graph_files.append((module, file_path))
-        plt.close()
+    return graph_path
 
-    return graph_files
-
-def export_to_excel(df, graph_files, output_dir, alias):
+def create_excel_report(df, graphs, output_file):
     wb = Workbook()
+
+    # Sheet 1: Data
     ws_data = wb.active
     ws_data.title = "Module Data"
-
     for row in dataframe_to_rows(df, index=False, header=True):
         ws_data.append(row)
 
-    ws_charts = wb.create_sheet(title="Module Graphs")
+    # Sheet 2: Graphs
+    ws_graphs = wb.create_sheet(title="Module Graphs")
     row_pos = 1
-    for module, image_path in graph_files:
-        if not os.path.exists(image_path):
-            continue
-        img = Image(image_path)
-        img.width = 800
-        img.height = 400
-        cell = f"A{row_pos}"
-        ws_charts.add_image(img, cell)
-        row_pos += 22
 
-    output_file = os.path.join(output_dir, f"{alias}_module_report.xlsx")
+    for module_name, graph_file in graphs:
+        if os.path.exists(graph_file):
+            img = Image(graph_file)
+            img.width = 800
+            img.height = 400
+            ws_graphs.add_image(img, f"A{row_pos}")
+            row_pos += 22  # spacing
+
     wb.save(output_file)
-    return output_file
 
-# Entry point
-spreadsheet_dir = "spreadsheet"
-os.makedirs("xlxs", exist_ok=True)
+# Main logic
+for filename in os.listdir(spreadsheet_dir):
+    if filename.endswith(".csv"):
+        csv_path = os.path.join(spreadsheet_dir, filename)
+        df = process_csv_file(csv_path)
 
-for file in os.listdir(spreadsheet_dir):
-    if file.endswith(".csv"):
-        alias = file.replace(".csv", "")
-        csv_path = os.path.join(spreadsheet_dir, file)
-        df = load_and_normalize_data(csv_path)
-        output_dir = get_output_folder(df, alias)
-        graph_files = generate_graphs(df, output_dir)
-        xlsx_file = export_to_excel(df, graph_files, output_dir, alias)
-        print(f"✅ XLSX generated: {xlsx_file}")
+        if df.empty:
+            print(f"⚠️ Skipping empty or invalid file: {filename}")
+            continue
+
+        temp_graph_dir = "temp_graphs"
+        os.makedirs(temp_graph_dir, exist_ok=True)
+
+        graphs = []
+        for module in df["Module"].dropna().unique():
+            graph_path = generate_graphs(df, module, temp_graph_dir)
+            graphs.append((module, graph_path))
+
+        output_excel_path = os.path.join(output_dir, filename.replace(".csv", ".xlsx"))
+        create_excel_report(df, graphs, output_excel_path)
+        print(f"✅ Excel report saved: {output_excel_path}")
+
+        # Clean up graph images
+        for _, gpath in graphs:
+            if os.path.exists(gpath):
+                os.remove(gpath)
+
+        os.rmdir(temp_graph_dir)
