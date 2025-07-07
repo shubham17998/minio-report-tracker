@@ -5,51 +5,53 @@ from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
 
-# Input and output directories
-spreadsheet_dir = "minio-report-tracker/spreadsheet"
-output_dir = "minio-report-tracker/xlxs"
+def load_and_normalize_data(input_file):
+    rows = []
+    with open(input_file, 'r') as f:
+        for line in f:
+            if "Date" in line or not line.strip():
+                continue
+            parts = [p.strip() for p in line.strip().split(',') if p.strip()]
+            for i in range(0, len(parts), 8):
+                if i + 7 < len(parts):
+                    row = parts[i:i + 8]
+                    rows.append(row)
 
-os.makedirs(output_dir, exist_ok=True)
+    df = pd.DataFrame(rows, columns=["Date", "Module", "T", "P", "S", "F", "I", "KI"])
+    df = df[df["Date"].str.contains(r'\d{1,2}-[A-Za-z]+-\d{4}', na=False)]
+    df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y")
 
-def process_csv_file(csv_file):
-    df = pd.read_csv(csv_file)
-
-    # Clean empty columns (from padding logic)
-    df = df.loc[:, ~df.columns.str.match(r'^\s*$')]
-
-    # Convert Date column to datetime
-    df["Date"] = pd.to_datetime(df["Date"], errors='coerce', dayfirst=True)
-    df = df.dropna(subset=["Date"])
-
-    # Convert numeric columns
     for col in ["T", "P", "S", "F", "I", "KI"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = pd.to_numeric(df[col], errors='coerce')
 
     return df
 
-def generate_graphs(df, module_name, output_path):
-    module_df = df[df["Module"] == module_name].sort_values("Date")
-    plt.figure(figsize=(10, 5))
+def generate_graphs(df, output_dir):
+    modules = df["Module"].unique()
+    graph_files = []
 
-    plt.plot(module_df["Date"], module_df["T"], label="Total", color="blue", marker='o')
-    plt.plot(module_df["Date"], module_df["P"], label="Passed", color="green", marker='o')
-    plt.plot(module_df["Date"], module_df["F"], label="Failed", color="red", marker='o')
+    for module in modules:
+        module_df = df[df["Module"] == module].sort_values("Date")
 
-    plt.title(f"Trend for Module: {module_name}")
-    plt.xlabel("Date")
-    plt.ylabel("Count")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+        plt.figure(figsize=(10, 5))
+        plt.plot(module_df["Date"], module_df["T"], label="Total", linewidth=2, color='blue', marker='o')
+        plt.plot(module_df["Date"], module_df["P"], label="Passed", linewidth=2.5, color='green', marker='o')
+        plt.plot(module_df["Date"], module_df["F"], label="Failed", linewidth=2.5, color='red', marker='o')
+        plt.title(f"Trend for Module: {module}", fontsize=14)
+        plt.xlabel("Date", fontsize=12)
+        plt.ylabel("Count", fontsize=12)
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
 
-    graph_path = os.path.join(output_path, f"{module_name}_trend.png")
-    plt.savefig(graph_path)
-    plt.close()
+        file_path = os.path.join(output_dir, f"{module}_trend.png")
+        plt.savefig(file_path)
+        graph_files.append((module, file_path))
+        plt.close()
 
-    return graph_path
+    return graph_files
 
-def create_excel_report(df, graphs, output_file):
+def export_to_excel(df, graph_files, xlsx_path):
     wb = Workbook()
 
     # Sheet 1: Data
@@ -59,44 +61,38 @@ def create_excel_report(df, graphs, output_file):
         ws_data.append(row)
 
     # Sheet 2: Graphs
-    ws_graphs = wb.create_sheet(title="Module Graphs")
+    ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
-
-    for module_name, graph_file in graphs:
-        if os.path.exists(graph_file):
-            img = Image(graph_file)
-            img.width = 800
-            img.height = 400
-            ws_graphs.add_image(img, f"A{row_pos}")
-            row_pos += 22  # spacing
-
-    wb.save(output_file)
-
-# Main logic
-for filename in os.listdir(spreadsheet_dir):
-    if filename.endswith(".csv"):
-        csv_path = os.path.join(spreadsheet_dir, filename)
-        df = process_csv_file(csv_path)
-
-        if df.empty:
-            print(f"⚠️ Skipping empty or invalid file: {filename}")
+    for module, image_path in graph_files:
+        if not os.path.exists(image_path):
             continue
+        img = Image(image_path)
+        img.width = 800
+        img.height = 400
+        cell = f"A{row_pos}"
+        ws_charts.add_image(img, cell)
+        row_pos += 22
 
-        temp_graph_dir = "temp_graphs"
-        os.makedirs(temp_graph_dir, exist_ok=True)
+    wb.save(xlsx_path)
 
-        graphs = []
-        for module in df["Module"].dropna().unique():
-            graph_path = generate_graphs(df, module, temp_graph_dir)
-            graphs.append((module, graph_path))
+# 🔁 MAIN: Generate XLSX for each CSV
+spreadsheet_dir = "minio-report-tracker/spreadsheet"
+output_base = "minio-report-tracker/xlxs"
 
-        output_excel_path = os.path.join(output_dir, filename.replace(".csv", ".xlsx"))
-        create_excel_report(df, graphs, output_excel_path)
-        print(f"✅ Excel report saved: {output_excel_path}")
+os.makedirs(output_base, exist_ok=True)
 
-        # Clean up graph images
-        for _, gpath in graphs:
-            if os.path.exists(gpath):
-                os.remove(gpath)
+for file in os.listdir(spreadsheet_dir):
+    if not file.endswith(".csv"):
+        continue
 
-        os.rmdir(temp_graph_dir)
+    alias = file.replace(".csv", "")
+    csv_path = os.path.join(spreadsheet_dir, file)
+    df = load_and_normalize_data(csv_path)
+    output_dir = os.path.join(output_base, f"{alias}_images")
+    os.makedirs(output_dir, exist_ok=True)
+
+    graph_files = generate_graphs(df, output_dir)
+    xlsx_path = os.path.join(output_base, f"{alias}.xlsx")
+    export_to_excel(df, graph_files, xlsx_path)
+
+    print(f"✅ Excel report saved: {xlsx_path}")
