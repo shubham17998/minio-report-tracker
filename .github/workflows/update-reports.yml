@@ -1,4 +1,4 @@
-name: Update CSV and XLSX Reports via MinIO
+name: Update CSV via MinIO
 
 on:
   schedule:
@@ -10,10 +10,10 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout `reporting` branch
+      - name: Checkout `master` branch
         uses: actions/checkout@v4
         with:
-          ref: reporting
+          ref: master
           fetch-depth: 0
 
       - name: Set up Python
@@ -22,15 +22,15 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install boto3 pandas matplotlib openpyxl
+        run: pip install boto3 pandas openpyxl matplotlib
 
-      - name: Run CSV generation script
+      - name: Run CSV update script
         run: python scripts/update_csv.py
 
-      - name: Clean old CSVs from Git folder
+      - name: Remove old CSVs from Git folder
         run: |
           rm -f minio-report-tracker/spreadsheet/*.csv
-          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old CSVs to remove"
+          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old files to remove"
 
       - name: Move new CSVs into Git folder
         run: |
@@ -39,19 +39,18 @@ jobs:
 
       - name: Run XLSX generation script
         run: |
-          mkdir -p ../xlxs
           python scripts/generate_xlsx.py
 
-      - name: Move new XLSX into Git folder
+      - name: Move XLSX files into Git folder
         run: |
           mkdir -p minio-report-tracker/xlxs
-          mv ../xlxs/*.xlsx minio-report-tracker/xlxs/
+          find xlxs/ -type f -name '*.xlsx' -exec cp --parents {} minio-report-tracker/ \;
 
-      - name: Commit and Push All Changes
+      - name: Commit and Push Changes to master branch
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/spreadsheet/*.csv
-          git add minio-report-tracker/xlxs/*.xlsx
-          git commit -m "📊 Updated Testrigs CSV and XLSX reports" --allow-empty || echo "✅ No changes to commit"
-          git push origin reporting
+          git add minio-report-tracker/spreadsheet/*.csv || true
+          git add minio-report-tracker/xlxs/**/*.xlsx || true
+          git commit -m "📊 Updated CSVs and XLSX reports from latest MinIO data" --allow-empty || echo "✅ No changes to commit"
+          git push origin master
