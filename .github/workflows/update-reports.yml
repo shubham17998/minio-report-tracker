@@ -40,7 +40,7 @@ jobs:
       - name: Run XLSX export script
         run: |
           mkdir -p ../xlxs
-          python scripts/export_xlsx.py
+          python scripts/generate_xlsx.py 
 
       - name: Remove old XLSX
         run: |
