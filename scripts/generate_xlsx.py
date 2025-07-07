@@ -1,9 +1,9 @@
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
-import os
 
 def load_and_normalize_data(input_file):
     rows = []
@@ -24,7 +24,14 @@ def load_and_normalize_data(input_file):
         df[col] = pd.to_numeric(df[col], errors='coerce')
     return df
 
-def generate_graphs(df, output_dir, alias):
+def get_output_folder(df, alias):
+    start_date = df["Date"].min().strftime("%d-%B-%Y")
+    end_date = df["Date"].max().strftime("%d-%B-%Y")
+    folder_name = f"xlxs/api-test-rig-{alias}-{start_date}_to_{end_date}"
+    os.makedirs(folder_name, exist_ok=True)
+    return folder_name
+
+def generate_graphs(df, output_dir):
     modules = df["Module"].unique()
     graph_files = []
 
@@ -35,7 +42,7 @@ def generate_graphs(df, output_dir, alias):
         plt.plot(module_df["Date"], module_df["T"], label="Total", linewidth=2, color='blue', marker='o')
         plt.plot(module_df["Date"], module_df["P"], label="Passed", linewidth=2.5, color='green', marker='o')
         plt.plot(module_df["Date"], module_df["F"], label="Failed", linewidth=2.5, color='red', marker='o')
-        plt.title(f"{alias.upper()} - {module} Trend", fontsize=14)
+        plt.title(f"Trend for Module: {module}", fontsize=14)
         plt.xlabel("Date", fontsize=12)
         plt.ylabel("Count", fontsize=12)
         plt.grid(True, linestyle='--', alpha=0.5)
@@ -51,9 +58,9 @@ def generate_graphs(df, output_dir, alias):
 
 def export_to_excel(df, graph_files, output_dir, alias):
     wb = Workbook()
-
     ws_data = wb.active
     ws_data.title = "Module Data"
+
     for row in dataframe_to_rows(df, index=False, header=True):
         ws_data.append(row)
 
@@ -65,32 +72,24 @@ def export_to_excel(df, graph_files, output_dir, alias):
         img = Image(image_path)
         img.width = 800
         img.height = 400
-        ws_charts.add_image(img, f"A{row_pos}")
+        cell = f"A{row_pos}"
+        ws_charts.add_image(img, cell)
         row_pos += 22
 
-    output_file = os.path.join(output_dir, f"{alias}.xlsx")
+    output_file = os.path.join(output_dir, f"{alias}_module_report.xlsx")
     wb.save(output_file)
     return output_file
 
-def process_all_csvs(csv_folder, output_folder):
-    os.makedirs(output_folder, exist_ok=True)
-    for filename in os.listdir(csv_folder):
-        if filename.endswith(".csv"):
-            alias = filename.replace(".csv", "")
-            csv_path = os.path.join(csv_folder, filename)
-            df = load_and_normalize_data(csv_path)
+# Entry point
+spreadsheet_dir = "spreadsheet"
+os.makedirs("xlxs", exist_ok=True)
 
-            if df.empty:
-                print(f"⚠️ Skipping empty file: {filename}")
-                continue
-
-            temp_graph_dir = os.path.join(output_folder, f"graphs_{alias}")
-            os.makedirs(temp_graph_dir, exist_ok=True)
-
-            graph_files = generate_graphs(df, temp_graph_dir, alias)
-            excel_path = export_to_excel(df, graph_files, output_folder, alias)
-
-            print(f"✅ XLSX saved: {excel_path}")
-
-if __name__ == "__main__":
-    process_all_csvs("../spreadsheet", "../xlxs")
+for file in os.listdir(spreadsheet_dir):
+    if file.endswith(".csv"):
+        alias = file.replace(".csv", "")
+        csv_path = os.path.join(spreadsheet_dir, file)
+        df = load_and_normalize_data(csv_path)
+        output_dir = get_output_folder(df, alias)
+        graph_files = generate_graphs(df, output_dir)
+        xlsx_file = export_to_excel(df, graph_files, output_dir, alias)
+        print(f"✅ XLSX generated: {xlsx_file}")
