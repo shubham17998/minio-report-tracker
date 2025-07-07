@@ -44,13 +44,13 @@ jobs:
       - name: Move XLSX files into Git folder
         run: |
           mkdir -p minio-report-tracker/xlxs
-          find xlxs/ -type f -name '*.xlsx' -exec cp --parents {} minio-report-tracker/ \;
+          cp minio-report-tracker/xlxs/*.xlsx minio-report-tracker/xlxs/
 
       - name: Commit and Push Changes to master branch
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/spreadsheet/*.csv || true
-          git add minio-report-tracker/xlxs/**/*.xlsx || true
+          git add minio-report-tracker/xlxs/*.xlsx || true
           git commit -m "📊 Updated CSVs and XLSX reports from latest MinIO data" --allow-empty || echo "✅ No changes to commit"
           git push origin master
