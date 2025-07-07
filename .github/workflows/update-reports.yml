@@ -2,7 +2,7 @@ name: Update CSV and XLSX via MinIO
 
 on:
   schedule:
-    - cron: '15 4 * * 1-5'  # 9:45 AM IST (Mon–Fri)
+    - cron: '15 4 * * 1-5'  # 9:45 AM IST Mon–Fri
   workflow_dispatch:
 
 jobs:
@@ -10,35 +10,29 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout master branch (for workflow)
+      - name: Checkout `master` branch
         uses: actions/checkout@v4
         with:
           ref: master
           fetch-depth: 0
-
-      - name: Fetch and switch to reporting branch
-        run: |
-          git fetch origin reporting:reporting
-          git checkout reporting
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install boto3 pandas matplotlib openpyxl
+      - name: Install Python dependencies
+        run: pip install pandas matplotlib openpyxl
 
-      - name: Run CSV update script
+      - name: Run CSV generation script
         run: python scripts/update_csv.py
 
-      - name: Clean old CSVs from Git folder
+      - name: Remove old CSVs from Git folder
         run: |
-          rm -f minio-report-tracker/spreadsheet/*.csv
-          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old CSVs to remove"
+          rm -f minio-report-tracker/spreadsheet/*.csv || true
+          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old files to remove"
 
-      - name: Move new CSVs into Git folder
+      - name: Move new CSVs to Git folder
         run: |
           mkdir -p minio-report-tracker/spreadsheet
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
@@ -49,11 +43,11 @@ jobs:
       - name: Ensure XLSX folder exists
         run: mkdir -p minio-report-tracker/xlxs
 
-      - name: Commit and Push CSV + XLSX to reporting branch
+      - name: Commit and Push CSV + XLSX to master
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/spreadsheet/*.csv || true
-          git add minio-report-tracker/xlxs/*.xlsx || true
-          git commit -m "📊 Updated CSV and XLSX reports from master workflow" --allow-empty || echo "✅ No changes to commit"
-          git push origin reporting
+          git add minio-report-tracker/spreadsheet/*.csv
+          git add minio-report-tracker/xlxs/*.xlsx
+          git commit -m "📊 Update CSV + XLSX reports for master" --allow-empty || echo "✅ Nothing to commit"
+          git push origin master
