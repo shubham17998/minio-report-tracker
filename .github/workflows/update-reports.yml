@@ -1,4 +1,4 @@
-name: Update CSV via MinIO
+name: Update CSV and XLSX via MinIO
 
 on:
   schedule:
@@ -22,38 +22,40 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install boto3 pandas matplotlib openpyxl
+        run: pip install boto3 pandas openpyxl matplotlib
 
-      - name: Run update_csv.py to generate CSVs
+      - name: Run CSV update script
         run: python scripts/update_csv.py
 
-      - name: Remove old CSVs
+      - name: Remove all old CSVs
         run: |
-          rm -f minio-report-tracker/spreadsheet/*.csv
-          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No old CSVs to remove"
+          rm -f minio-report-tracker/spreadsheet/*.csv || true
+          git rm -f minio-report-tracker/spreadsheet/*.csv || echo "No CSVs to remove"
 
-      - name: Move new CSVs into Git folder
+      - name: Move new CSVs into repo
         run: |
           mkdir -p minio-report-tracker/spreadsheet
           mv ../spreadsheet/*.csv minio-report-tracker/spreadsheet/
 
-      - name: Run generate_xlsx.py to generate Excel reports
-        run: python scripts/generate_xlsx.py
-
-      - name: Remove old XLSX files
+      - name: Run XLSX export script
         run: |
-          rm -f minio-report-tracker/xlxs/*.xlsx
-          git rm -f minio-report-tracker/xlxs/*.xlsx || echo "No old XLSX files to remove"
+          mkdir -p ../xlxs
+          python scripts/export_xlsx.py
 
-      - name: Move new XLSX files into Git folder
+      - name: Remove old XLSX
+        run: |
+          rm -f minio-report-tracker/xlxs/*.xlsx || true
+          git rm -f minio-report-tracker/xlxs/*.xlsx || echo "No XLSX to remove"
+
+      - name: Move new XLSX into repo
         run: |
           mkdir -p minio-report-tracker/xlxs
           mv ../xlxs/*.xlsx minio-report-tracker/xlxs/
 
-      - name: Commit and Push Changes to `reporting` branch
+      - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/spreadsheet/*.csv minio-report-tracker/xlxs/*.xlsx
-          git commit -m "📊 Updated CSV and XLSX reports for all environments" --allow-empty || echo "✅ No changes to commit"
+          git commit -m "📊 Auto-update: Latest Testrigs CSV and XLSX reports" --allow-empty || echo "✅ No changes to commit"
           git push origin reporting
