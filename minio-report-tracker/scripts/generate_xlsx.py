@@ -76,17 +76,17 @@ def export_to_excel(df, graph_files, xlsx_path):
     wb.save(xlsx_path)
 
 # 🔁 MAIN: Generate XLSX for each CSV
-spreadsheet_dir = "minio-report-tracker/spreadsheet"
+csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
 
 os.makedirs(output_base, exist_ok=True)
 
-for file in os.listdir(spreadsheet_dir):
+for file in os.listdir(csv_dir):
     if not file.endswith(".csv"):
         continue
 
     alias = file.replace(".csv", "")
-    csv_path = os.path.join(spreadsheet_dir, file)
+    csv_path = os.path.join(csv_dir, file)
     df = load_and_normalize_data(csv_path)
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
