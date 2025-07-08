@@ -32,11 +32,6 @@ jobs:
           rm -f minio-report-tracker/csv/*.csv || true
           git rm -f minio-report-tracker/csv/*.csv || echo "No old files to remove"
 
-      - name: Move new CSVs to Git folder
-        run: |
-          mkdir -p minio-report-tracker/csv
-          mv ../csv/*.csv minio-report-tracker/csv/
-
       - name: Run XLSX generation script
         run: python minio-report-tracker/scripts/generate_xlsx.py
 
