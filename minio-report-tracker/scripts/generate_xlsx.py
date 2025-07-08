@@ -54,13 +54,11 @@ def generate_graphs(df, output_dir):
 def export_to_excel(df, graph_files, xlsx_path):
     wb = Workbook()
 
-    # Sheet 1: Data
     ws_data = wb.active
     ws_data.title = "Module Data"
     for row in dataframe_to_rows(df, index=False, header=True):
         ws_data.append(row)
 
-    # Sheet 2: Graphs
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -75,13 +73,10 @@ def export_to_excel(df, graph_files, xlsx_path):
 
     wb.save(xlsx_path)
 
-# 🔁 MAIN: Generate XLSX for each CSV
-csv_dir = "minio-report-tracker/csv"   # ✅ FIXED
+csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
 
 os.makedirs(output_base, exist_ok=True)
-
-print("CSV files found:", os.listdir(csv_dir))  # ✅ Debug print
 
 for file in os.listdir(csv_dir):
     if not file.endswith(".csv"):
@@ -96,5 +91,3 @@ for file in os.listdir(csv_dir):
     graph_files = generate_graphs(df, output_dir)
     xlsx_path = os.path.join(output_base, f"{alias}.xlsx")
     export_to_excel(df, graph_files, xlsx_path)
-
-    print(f"✅ Excel report saved: {xlsx_path}")
