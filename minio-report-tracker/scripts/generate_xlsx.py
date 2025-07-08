@@ -19,7 +19,7 @@ def load_and_normalize_data(input_file):
 
     df = pd.DataFrame(rows, columns=["Date", "Module", "T", "P", "S", "F", "I", "KI"])
     df = df[df["Date"].str.contains(r'\d{1,2}-[A-Za-z]+-\d{4}', na=False)]
-    df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y")
+    df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y", errors='coerce')
 
     for col in ["T", "P", "S", "F", "I", "KI"]:
         df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -65,6 +65,7 @@ def export_to_excel(df, graph_files, xlsx_path):
     row_pos = 1
     for module, image_path in graph_files:
         if not os.path.exists(image_path):
+            print(f"⚠️ Skipping missing image: {image_path}")
             continue
         img = Image(image_path)
         img.width = 800
@@ -88,6 +89,13 @@ for file in os.listdir(csv_dir):
     alias = file.replace(".csv", "")
     csv_path = os.path.join(csv_dir, file)
     df = load_and_normalize_data(csv_path)
+
+    print(f"📄 Loaded {len(df)} rows from: {csv_path}")
+
+    if df.empty:
+        print(f"⚠️ Skipping XLSX generation for {alias} — empty or invalid CSV.")
+        continue
+
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
