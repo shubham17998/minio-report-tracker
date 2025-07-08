@@ -10,10 +10,10 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout master branch
+      - name: Checkout `reporting` branch
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: reporting     # 👈 Ensures all changes go to the reporting branch
           fetch-depth: 0
 
       - name: Set up Python
@@ -30,7 +30,7 @@ jobs:
       - name: Remove old CSVs from Git folder
         run: |
           rm -f minio-report-tracker/csv/*.csv || true
-          git rm -f minio-report-tracker/csv/*.csv || echo "No old files to remove"
+          git rm -f minio-report-tracker/csv/*.csv || echo "No old CSVs to remove"
 
       - name: Move new CSVs to Git folder
         run: |
@@ -43,11 +43,11 @@ jobs:
       - name: Ensure XLSX folder exists
         run: mkdir -p minio-report-tracker/xlxs
 
-      - name: Commit and push updates
+      - name: Commit and push updates to `reporting`
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/csv/*.csv
           git add minio-report-tracker/xlxs/*.xlsx
-          git commit -m "Update CSV and XLSX reports" --allow-empty || echo "Nothing to commit"
-          git push origin master
+          git commit -m "📈 Update CSV and XLSX reports for reporting" --allow-empty || echo "✅ Nothing to commit"
+          git push origin reporting
