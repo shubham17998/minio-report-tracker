@@ -106,7 +106,7 @@ for alias in MINIO_ALIASES:
                     all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:2]
+    latest_dates = sorted_dates[:3]
 
     dfs = []
     for date in latest_dates:
