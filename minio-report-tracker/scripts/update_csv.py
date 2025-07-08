@@ -136,8 +136,8 @@ for alias in MINIO_ALIASES:
             dfs[i][" "] = ""
 
     # 💾 Save CSV
-    os.makedirs("../spreadsheet", exist_ok=True)
-    csv_path = f"../spreadsheet/{csv_filename}"
+    os.makedirs("../csv", exist_ok=True)
+    csv_path = f"../csv/{csv_filename}"
     final_df = pd.concat(dfs, axis=1)
     final_df.to_csv(csv_path, index=False)
     print(f"✅ CSV saved to: {csv_path}")
