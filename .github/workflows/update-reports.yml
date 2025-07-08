@@ -10,7 +10,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout `master` branch
+      - name: Checkout master branch
         uses: actions/checkout@v4
         with:
           ref: master
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: pip install pandas matplotlib openpyxl
 
       - name: Run CSV generation script
@@ -32,7 +32,7 @@ jobs:
           rm -f minio-report-tracker/csv/*.csv || true
           git rm -f minio-report-tracker/csv/*.csv || echo "No old files to remove"
 
-      - name: Ensure CSV folder exists and move new files
+      - name: Move new CSVs to Git folder
         run: |
           mkdir -p minio-report-tracker/csv
           mv ../csv/*.csv minio-report-tracker/csv/
@@ -40,17 +40,14 @@ jobs:
       - name: Run XLSX generation script
         run: python minio-report-tracker/scripts/generate_xlsx.py
 
-      - name: Debug XLSX files
-        run: ls -lh minio-report-tracker/xlxs
-
       - name: Ensure XLSX folder exists
         run: mkdir -p minio-report-tracker/xlxs
 
-      - name: Commit and Push CSV + XLSX to master
+      - name: Commit and push updates
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add minio-report-tracker/csv/*.csv
           git add minio-report-tracker/xlxs/*.xlsx
-          git commit -m "📊 Update CSV + XLSX reports for master" --allow-empty || echo "✅ Nothing to commit"
+          git commit -m "Update CSV and XLSX reports" --allow-empty || echo "Nothing to commit"
           git push origin master
