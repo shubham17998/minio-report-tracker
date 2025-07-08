@@ -76,7 +76,7 @@ def export_to_excel(df, graph_files, xlsx_path):
     wb.save(xlsx_path)
 
 # 🔁 MAIN: Generate XLSX for each CSV
-csv_dir = "minio-report-tracker/csv"
+csv_dir = "../csv"
 output_base = "minio-report-tracker/xlxs"
 
 os.makedirs(output_base, exist_ok=True)
