@@ -6,7 +6,6 @@ from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import numbers
 
 def load_and_normalize_data(input_file):
     rows = []
@@ -53,7 +52,6 @@ def generate_graphs(df, output_dir):
         plt.grid(True, linestyle='--', alpha=0.5)
         plt.legend()
 
-        # Format X-axis date labels
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%b-%Y'))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator())
         plt.xticks(rotation=30)
@@ -76,16 +74,15 @@ def export_to_excel(df, graph_files, xlsx_path):
     for row in dataframe_to_rows(df, index=False, header=True):
         ws_data.append(row)
 
-    # Format date column and auto-widths
+    # Format date cells in column A and auto-adjust column widths
     for cell in ws_data["A"][1:]:  # Skip header
-        cell.number_format = numbers.FORMAT_DATE_DDMMYYYY
+        cell.number_format = "DD-MMM-YYYY"
 
     for column_cells in ws_data.columns:
         length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
         col_letter = get_column_letter(column_cells[0].column)
         ws_data.column_dimensions[col_letter].width = length + 2
 
-    # Add images to "Module Graphs" sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -99,7 +96,7 @@ def export_to_excel(df, graph_files, xlsx_path):
 
     wb.save(xlsx_path)
 
-# === MAIN SCRIPT ===
+# === MAIN EXECUTION ===
 
 csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
