@@ -54,7 +54,6 @@ def generate_graphs(df, output_dir):
 
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%b-%Y'))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator())
-        plt.xticks(rotation=30)
 
         plt.tight_layout()
 
