@@ -1,17 +1,21 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import numbers
 
 def load_and_normalize_data(input_file):
     rows = []
     with open(input_file, 'r') as f:
         for line in f:
-            if "Date" in line or not line.strip():
+            line = line.strip()
+            if not line or line.startswith("###"):
                 continue
-            parts = [p.strip() for p in line.strip().split(',') if p.strip()]
+            parts = [p.strip() for p in line.split(',') if p.strip()]
             for i in range(0, len(parts), 8):
                 if i + 7 < len(parts):
                     row = parts[i:i + 8]
@@ -31,17 +35,29 @@ def generate_graphs(df, output_dir):
     graph_files = []
 
     for module in modules:
-        module_df = df[df["Module"] == module].sort_values("Date")
+        module_df = df[df["Module"] == module]
+        module_df = module_df.groupby(["Date", "Module"]).sum().reset_index()
+        module_df = module_df.sort_values("Date")
+
+        if module_df.empty:
+            continue
 
         plt.figure(figsize=(10, 5))
         plt.plot(module_df["Date"], module_df["T"], label="Total", linewidth=2, color='blue', marker='o')
         plt.plot(module_df["Date"], module_df["P"], label="Passed", linewidth=2.5, color='green', marker='o')
         plt.plot(module_df["Date"], module_df["F"], label="Failed", linewidth=2.5, color='red', marker='o')
+
         plt.title(f"Trend for Module: {module}", fontsize=14)
         plt.xlabel("Date", fontsize=12)
         plt.ylabel("Count", fontsize=12)
         plt.grid(True, linestyle='--', alpha=0.5)
         plt.legend()
+
+        # Format X-axis date labels
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%b-%Y'))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+        plt.xticks(rotation=30)
+
         plt.tight_layout()
 
         file_path = os.path.join(output_dir, f"{module}_trend.png")
@@ -56,9 +72,20 @@ def export_to_excel(df, graph_files, xlsx_path):
 
     ws_data = wb.active
     ws_data.title = "Module Data"
+
     for row in dataframe_to_rows(df, index=False, header=True):
         ws_data.append(row)
 
+    # Format date column and auto-widths
+    for cell in ws_data["A"][1:]:  # Skip header
+        cell.number_format = numbers.FORMAT_DATE_DDMMYYYY
+
+    for column_cells in ws_data.columns:
+        length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
+        col_letter = get_column_letter(column_cells[0].column)
+        ws_data.column_dimensions[col_letter].width = length + 2
+
+    # Add images to "Module Graphs" sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -67,15 +94,15 @@ def export_to_excel(df, graph_files, xlsx_path):
         img = Image(image_path)
         img.width = 800
         img.height = 400
-        cell = f"A{row_pos}"
-        ws_charts.add_image(img, cell)
+        ws_charts.add_image(img, f"A{row_pos}")
         row_pos += 22
 
     wb.save(xlsx_path)
 
+# === MAIN SCRIPT ===
+
 csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
-
 os.makedirs(output_base, exist_ok=True)
 
 for file in os.listdir(csv_dir):
@@ -85,6 +112,7 @@ for file in os.listdir(csv_dir):
     alias = file.replace(".csv", "")
     csv_path = os.path.join(csv_dir, file)
     df = load_and_normalize_data(csv_path)
+
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
