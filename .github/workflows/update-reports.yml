@@ -34,17 +34,18 @@ jobs:
           sudo wg-quick up wg0
           sudo wg show wg0
 
-      - name: Install specific version of MinIO Client (mc)
+      - name: Install MinIO Client (mc)
         run: |
           curl -L https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2022-07-29T19-17-16Z -o mc
           chmod +x mc
           sudo mv mc /usr/local/bin/
           mc --version
 
-      - name: Configure MinIO Aliases
+      - name: Configure MinIO Aliases from Secrets (Dynamic)
         run: |
-          chmod +x minio-report-tracker/scripts/setup-minio-alias.sh
-          ./minio-report-tracker/scripts/setup-minio-alias.sh
+          mc alias set "${{ secrets.MINIO_CELLBOX21_NAME }}" "${{ secrets.MINIO_CELLBOX21_URL }}" "${{ secrets.MINIO_CELLBOX21_USER }}" "${{ secrets.MINIO_CELLBOX21_PASSWORD }}" --api S3v2
+          echo "Configured aliases:"
+          mc alias ls
 
       - name: Run CSV generation script
         run: python minio-report-tracker/scripts/update_csv.py
