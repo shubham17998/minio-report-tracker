@@ -7,7 +7,7 @@ on:
 
 jobs:
   update:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout master branch
@@ -21,8 +21,30 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install pandas matplotlib openpyxl
+
+      - name: Install WireGuard
+        run: sudo apt-get install -y wireguard
+
+      - name: Configure and start WireGuard
+        run: |
+          echo "${{ secrets.WIREGUARD_CONF }}" | sudo tee /etc/wireguard/wg0.conf > /dev/null
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+          sudo wg show wg0
+
+      - name: Install specific version of MinIO Client (mc)
+        run: |
+          curl -L https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2022-07-29T19-17-16Z -o mc
+          chmod +x mc
+          sudo mv mc /usr/local/bin/
+          mc --version
+
+      - name: Configure MinIO Aliases
+        run: |
+          chmod +x minio-report-tracker/scripts/setup-minio-alias.sh
+          ./minio-report-tracker/scripts/setup-minio-alias.sh
 
       - name: Run CSV generation script
         run: python minio-report-tracker/scripts/update_csv.py
