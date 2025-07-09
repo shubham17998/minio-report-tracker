@@ -5,7 +5,7 @@ import subprocess
 import pandas as pd
 from datetime import datetime
 
-MINIO_ALIASES = ["cellbox21", "dev-int"]
+MINIO_ALIASES = ["cellbox21"]
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports"]
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
@@ -106,7 +106,7 @@ for alias in MINIO_ALIASES:
                     all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
     sorted_dates = sorted(all_data_by_date.keys(), key=lambda x: datetime.strptime(x, "%d-%B-%Y"), reverse=True)
-    latest_dates = sorted_dates[:3]
+    latest_dates = sorted_dates[:5]
 
     dfs = []
     for date in latest_dates:
