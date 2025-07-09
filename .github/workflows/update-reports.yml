@@ -1,4 +1,4 @@
-name: Update CSV and XLSX via MinIO
+name: Update CSV and XLSX via MinIO (Reporting Branch)
 
 on:
   schedule:
@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout master branch
+      - name: Checkout reporting branch
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: reporting
           fetch-depth: 0
 
       - name: Set up Python
@@ -76,4 +76,4 @@ jobs:
           git add minio-report-tracker/csv/*.csv
           git add minio-report-tracker/xlxs/*.xlsx
           git commit -m "Update CSV and XLSX reports" --allow-empty || echo "Nothing to commit"
-          git push origin master
+          git push origin reporting
