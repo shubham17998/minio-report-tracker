@@ -25,9 +25,6 @@ def load_normalized_data(csv_path):
     df = df[df["Date"].str.contains(r'\d{1,2}-[A-Za-z]+-\d{4}', na=False)]
     df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y")
 
-    # 🔥 Remove weekends (Saturday = 5, Sunday = 6)
-    df = df[df["Date"].dt.weekday < 5]
-
     for col in ["T", "P", "S", "F", "I", "KI"]:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
@@ -73,37 +70,41 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # ✅ Read CSV
+    # Load the raw CSV
     df_raw = pd.read_csv(csv_path, dtype=str)
-
-    # 🔍 Remove Unnamed columns and trailing empty columns
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed|^\\s*$")]
 
-    # ✅ Dynamically relabel every 8-column block
-    expected_block = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
-    block_size = len(expected_block)
-    actual_cols = df_raw.shape[1]
+    block_size = 8  # Columns in one date block
+    total_cols = df_raw.shape[1]
+    num_blocks = total_cols // block_size
+    header = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
-    # ⛔ Ensure only full blocks are processed
-    full_block_cols = (actual_cols // block_size) * block_size
-    df_raw = df_raw.iloc[:, :full_block_cols]
-    df_raw.columns = expected_block * (full_block_cols // block_size)
+    # Write blocks with 1 column gap
+    for block_index in range(num_blocks):
+        start_col = block_index * block_size
+        end_col = start_col + block_size
+        df_block = df_raw.iloc[:, start_col:end_col]
+        df_block.columns = header  # Reset proper headers
 
-    # ✅ Write to Excel & Bold header row
-    for r_idx, row in enumerate(dataframe_to_rows(df_raw, index=False, header=True), 1):
-        ws_data.append(row)
-        if r_idx == 1:
-            for cell in ws_data[r_idx]:
-                cell.font = Font(bold=True)
+        col_offset = block_index * (block_size + 1)  # 1-column gap
 
-    # 📐 Auto column width
-    for column_cells in ws_data.columns:
-        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
-        col_letter = get_column_letter(column_cells[0].column)
-        ws_data.column_dimensions[col_letter].width = length + 2
+        for row_idx, row in df_block.iterrows():
+            for col_idx, value in enumerate(row):
+                cell = ws_data.cell(row=row_idx + 2, column=col_offset + col_idx + 1, value=value)
 
-    # 📊 Add charts in another sheet
-    ws_charts = wb.create_sheet(title="Module Graphs")
+        # Write header
+        for col_idx, col_name in enumerate(header):
+            cell = ws_data.cell(row=1, column=col_offset + col_idx + 1, value=col_name)
+            cell.font = Font(bold=True)
+
+    # Adjust column widths
+    for col_cells in ws_data.columns:
+        col_letter = get_column_letter(col_cells[0].column)
+        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+        ws_data.column_dimensions[col_letter].width = max_len + 2
+
+    # Add Graphs
+    ws_charts = wb.create_sheet("Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
         if not os.path.exists(image_path):
