@@ -30,6 +30,9 @@ def load_normalized_data(csv_path):
     return df
 
 def generate_graphs(df, output_dir):
+    # ✅ Exclude Saturday (5) and Sunday (6)
+    df = df[df["Date"].dt.weekday < 5]
+
     modules = df["Module"].unique()
     graph_files = []
 
@@ -69,47 +72,39 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # 1️⃣ Load CSV with proper handling of unnamed columns
-    df_raw = pd.read_csv(csv_path, dtype=str)
+    df = pd.read_csv(csv_path, header=None)
+    row_data = df.values.tolist()
 
-    # 2️⃣ Drop all unnamed/empty columns
-    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed', na=False)]
-    df_raw = df_raw.dropna(axis=1, how='all')
-
-    # 3️⃣ Normalize headers (remove .1, .2 etc.)
-    def normalize_header(col):
-        return col.split('.')[0].strip()
-
-    df_raw.columns = [normalize_header(col) for col in df_raw.columns]
-
-    # 4️⃣ Split into 8-column blocks
-    num_cols = df_raw.shape[1]
-    block_size = 8
-    blocks = [df_raw.iloc[:, i:i + block_size] for i in range(0, num_cols, block_size)]
-
-    # 5️⃣ Write blocks with one column gap
+    num_blocks = len(row_data[0]) // 8
+    headers = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
     start_col = 1
-    for block in blocks:
-        # Write bold header
-        for col_idx, col_name in enumerate(block.columns):
-            cell = ws_data.cell(row=1, column=start_col + col_idx)
-            cell.value = col_name
+
+    # Write headers
+    for block in range(num_blocks):
+        for idx, header in enumerate(headers):
+            col_letter = get_column_letter(start_col + idx)
+            cell = ws_data[f"{col_letter}1"]
+            cell.value = header
             cell.font = Font(bold=True)
+        start_col += 9  # 8 columns + 1 gap
 
-        # Write data
-        for row_idx, row in enumerate(block.itertuples(index=False), start=2):
-            for col_idx, value in enumerate(row):
-                ws_data.cell(row=row_idx, column=start_col + col_idx, value=value)
+    # Write data
+    for row_idx, row in enumerate(row_data, start=2):
+        start_col = 1
+        for block in range(num_blocks):
+            for idx in range(8):
+                col_letter = get_column_letter(start_col + idx)
+                value = row[block * 8 + idx] if block * 8 + idx < len(row) else ""
+                ws_data[f"{col_letter}{row_idx}"].value = value
+            start_col += 9
 
-        start_col += block_size + 1  # Add column gap
+    # Adjust column widths
+    for col in ws_data.columns:
+        max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws_data.column_dimensions[col_letter].width = max_length + 2
 
-    # 6️⃣ Auto-adjust column widths
-    for col_cells in ws_data.columns:
-        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
-        col_letter = get_column_letter(col_cells[0].column)
-        ws_data.column_dimensions[col_letter].width = max_len + 2
-
-    # 7️⃣ Graph sheet
+    # Add graphs in separate sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -124,6 +119,7 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     wb.save(xlsx_path)
 
 # === MAIN EXECUTION ===
+
 csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
 os.makedirs(output_base, exist_ok=True)
@@ -136,6 +132,7 @@ for file in os.listdir(csv_dir):
     csv_path = os.path.join(csv_dir, file)
 
     df_normalized = load_normalized_data(csv_path)
+
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
