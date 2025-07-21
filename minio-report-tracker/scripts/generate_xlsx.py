@@ -6,6 +6,7 @@ from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
 
 def load_normalized_data(csv_path):
     rows = []
@@ -72,27 +73,36 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # ✅ Read CSV, remove "Unnamed" columns, assign fixed headers per block
+    # ✅ Read CSV
     df_raw = pd.read_csv(csv_path, dtype=str)
-    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed")]
 
+    # 🔍 Remove Unnamed columns and trailing empty columns
+    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed|^\\s*$")]
+
+    # ✅ Dynamically relabel every 8-column block
     expected_block = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
-    num_blocks = df_raw.shape[1] // len(expected_block)
-    total_cols_expected = num_blocks * len(expected_block)
+    block_size = len(expected_block)
+    actual_cols = df_raw.shape[1]
 
-    df_raw = df_raw.iloc[:, :total_cols_expected]  # Trim extra columns
-    df_raw.columns = expected_block * num_blocks   # Apply repeated headers
+    # ⛔ Ensure only full blocks are processed
+    full_block_cols = (actual_cols // block_size) * block_size
+    df_raw = df_raw.iloc[:, :full_block_cols]
+    df_raw.columns = expected_block * (full_block_cols // block_size)
 
-    for row in dataframe_to_rows(df_raw, index=False, header=True):
+    # ✅ Write to Excel & Bold header row
+    for r_idx, row in enumerate(dataframe_to_rows(df_raw, index=False, header=True), 1):
         ws_data.append(row)
+        if r_idx == 1:
+            for cell in ws_data[r_idx]:
+                cell.font = Font(bold=True)
 
-    # 🧩 Auto-adjust column widths
+    # 📐 Auto column width
     for column_cells in ws_data.columns:
         length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
         col_letter = get_column_letter(column_cells[0].column)
         ws_data.column_dimensions[col_letter].width = length + 2
 
-    # 📊 Add charts
+    # 📊 Add charts in another sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
