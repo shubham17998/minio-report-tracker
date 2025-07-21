@@ -69,16 +69,28 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
+    # 1️⃣ Load CSV with proper handling of unnamed columns
     df_raw = pd.read_csv(csv_path, dtype=str)
 
-    # Break df into column groups of 8 (date-wise blocks)
+    # 2️⃣ Drop all unnamed/empty columns
+    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed', na=False)]
+    df_raw = df_raw.dropna(axis=1, how='all')
+
+    # 3️⃣ Normalize headers (remove .1, .2 etc.)
+    def normalize_header(col):
+        return col.split('.')[0].strip()
+
+    df_raw.columns = [normalize_header(col) for col in df_raw.columns]
+
+    # 4️⃣ Split into 8-column blocks
     num_cols = df_raw.shape[1]
     block_size = 8
-    blocks = [df_raw.iloc[:, i:i+block_size] for i in range(0, num_cols, block_size)]
+    blocks = [df_raw.iloc[:, i:i + block_size] for i in range(0, num_cols, block_size)]
 
-    start_col = 1  # Excel columns are 1-indexed
+    # 5️⃣ Write blocks with one column gap
+    start_col = 1
     for block in blocks:
-        # Write header
+        # Write bold header
         for col_idx, col_name in enumerate(block.columns):
             cell = ws_data.cell(row=1, column=start_col + col_idx)
             cell.value = col_name
@@ -89,16 +101,15 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
             for col_idx, value in enumerate(row):
                 ws_data.cell(row=row_idx, column=start_col + col_idx, value=value)
 
-        # Add one-column gap after each block
-        start_col += block_size + 1
+        start_col += block_size + 1  # Add column gap
 
-    # Adjust column widths
+    # 6️⃣ Auto-adjust column widths
     for col_cells in ws_data.columns:
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
         col_letter = get_column_letter(col_cells[0].column)
         ws_data.column_dimensions[col_letter].width = max_len + 2
 
-    # Graphs
+    # 7️⃣ Graph sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
