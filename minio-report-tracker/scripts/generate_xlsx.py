@@ -30,15 +30,14 @@ def load_normalized_data(csv_path):
     return df
 
 def generate_graphs(df, output_dir):
+    # ✅ Remove weekends from the graph data
+    df = df[~df["Date"].dt.weekday.isin([5, 6])]  # 5=Saturday, 6=Sunday
+
     modules = df["Module"].unique()
     graph_files = []
 
     for module in modules:
         module_df = df[df["Module"] == module]
-
-        # Filter out weekends (Saturday=5, Sunday=6)
-        module_df = module_df[~module_df["Date"].dt.weekday.isin([5, 6])]
-
         module_df = module_df.groupby(["Date", "Module"]).sum().reset_index()
         module_df = module_df.sort_values("Date")
 
@@ -73,37 +72,47 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
+    # 1️⃣ Load CSV with proper handling of unnamed columns
     df_raw = pd.read_csv(csv_path, dtype=str)
+
+    # 2️⃣ Drop all unnamed/empty columns
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed', na=False)]
     df_raw = df_raw.dropna(axis=1, how='all')
 
+    # 3️⃣ Normalize headers (remove .1, .2 etc.)
     def normalize_header(col):
         return col.split('.')[0].strip()
 
     df_raw.columns = [normalize_header(col) for col in df_raw.columns]
 
+    # 4️⃣ Split into 8-column blocks
     num_cols = df_raw.shape[1]
     block_size = 8
     blocks = [df_raw.iloc[:, i:i + block_size] for i in range(0, num_cols, block_size)]
 
+    # 5️⃣ Write blocks with one column gap and bold header
     start_col = 1
     for block in blocks:
+        # Write bold header
         for col_idx, col_name in enumerate(block.columns):
             cell = ws_data.cell(row=1, column=start_col + col_idx)
             cell.value = col_name
             cell.font = Font(bold=True)
 
+        # Write data
         for row_idx, row in enumerate(block.itertuples(index=False), start=2):
             for col_idx, value in enumerate(row):
                 ws_data.cell(row=row_idx, column=start_col + col_idx, value=value)
 
-        start_col += block_size + 1
+        start_col += block_size + 1  # Add column gap between blocks
 
+    # 6️⃣ Auto-adjust column widths
     for col_cells in ws_data.columns:
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
         col_letter = get_column_letter(col_cells[0].column)
         ws_data.column_dimensions[col_letter].width = max_len + 2
 
+    # 7️⃣ Graph sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
