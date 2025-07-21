@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
-from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
@@ -70,41 +69,42 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # Load the raw CSV
     df_raw = pd.read_csv(csv_path, dtype=str)
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed|^\\s*$")]
 
-    block_size = 8  # Columns in one date block
+    block_size = 8
     total_cols = df_raw.shape[1]
     num_blocks = total_cols // block_size
-    header = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+    true_headers = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
-    # Write blocks with 1 column gap
     for block_index in range(num_blocks):
         start_col = block_index * block_size
         end_col = start_col + block_size
         df_block = df_raw.iloc[:, start_col:end_col]
-        df_block.columns = header  # Reset proper headers
+        df_block.columns = true_headers
 
-        col_offset = block_index * (block_size + 1)  # 1-column gap
+        # One column gap between each block
+        gap = 1
+        col_offset = block_index * (block_size + gap)
 
-        for row_idx, row in df_block.iterrows():
-            for col_idx, value in enumerate(row):
-                cell = ws_data.cell(row=row_idx + 2, column=col_offset + col_idx + 1, value=value)
-
-        # Write header
-        for col_idx, col_name in enumerate(header):
+        # Write headers with bold styling
+        for col_idx, col_name in enumerate(true_headers):
             cell = ws_data.cell(row=1, column=col_offset + col_idx + 1, value=col_name)
             cell.font = Font(bold=True)
 
-    # Adjust column widths
+        # Write each row
+        for row_idx, row in enumerate(df_block.itertuples(index=False), start=2):
+            for col_idx, value in enumerate(row):
+                ws_data.cell(row=row_idx, column=col_offset + col_idx + 1, value=value)
+
+    # Auto-adjust column widths
     for col_cells in ws_data.columns:
         col_letter = get_column_letter(col_cells[0].column)
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
         ws_data.column_dimensions[col_letter].width = max_len + 2
 
-    # Add Graphs
-    ws_charts = wb.create_sheet("Module Graphs")
+    # Create graph sheet
+    ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
         if not os.path.exists(image_path):
