@@ -2,20 +2,10 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime, timedelta
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
-
-def get_last_n_weekdays(n=5):
-    today = datetime.today()
-    weekdays = []
-    while len(weekdays) < n:
-        if today.weekday() < 5:  # Monday to Friday only
-            weekdays.append(today.strftime("%d-%B-%Y"))
-        today -= timedelta(days=1)
-    return sorted(weekdays)
 
 def load_normalized_data(csv_path):
     rows = []
@@ -40,14 +30,15 @@ def load_normalized_data(csv_path):
     return df
 
 def generate_graphs(df, output_dir):
-    valid_dates = get_last_n_weekdays()
-    df = df[df["Date"].dt.strftime("%d-%B-%Y").isin(valid_dates)]
-
     modules = df["Module"].unique()
     graph_files = []
 
     for module in modules:
         module_df = df[df["Module"] == module]
+
+        # Filter out weekends (Saturday=5, Sunday=6)
+        module_df = module_df[~module_df["Date"].dt.weekday.isin([5, 6])]
+
         module_df = module_df.groupby(["Date", "Module"]).sum().reset_index()
         module_df = module_df.sort_values("Date")
 
@@ -83,38 +74,46 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data.title = "Module Data"
 
     df_raw = pd.read_csv(csv_path, dtype=str)
+    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed', na=False)]
+    df_raw = df_raw.dropna(axis=1, how='all')
+
+    def normalize_header(col):
+        return col.split('.')[0].strip()
+
+    df_raw.columns = [normalize_header(col) for col in df_raw.columns]
+
+    num_cols = df_raw.shape[1]
     block_size = 8
-    num_blocks = len(df_raw.columns) // block_size
+    blocks = [df_raw.iloc[:, i:i + block_size] for i in range(0, num_cols, block_size)]
 
-    for block in range(num_blocks):
-        start_col = block * block_size
-        block_df = df_raw.iloc[:, start_col:start_col + block_size]
-        block_df.columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+    start_col = 1
+    for block in blocks:
+        for col_idx, col_name in enumerate(block.columns):
+            cell = ws_data.cell(row=1, column=start_col + col_idx)
+            cell.value = col_name
+            cell.font = Font(bold=True)
 
-        start_col_excel = block * (block_size + 1) + 1  # +1 for gap between blocks
-        for row_idx, row in enumerate([block_df.columns.tolist()] + block_df.values.tolist(), start=1):
-            for col_offset, value in enumerate(row):
-                col_idx = start_col_excel + col_offset
-                cell = ws_data.cell(row=row_idx, column=col_idx, value=value)
-                if row_idx == 1:
-                    cell.font = Font(bold=True)
+        for row_idx, row in enumerate(block.itertuples(index=False), start=2):
+            for col_idx, value in enumerate(row):
+                ws_data.cell(row=row_idx, column=start_col + col_idx, value=value)
 
-    # Auto column widths
-    for col in ws_data.columns:
-        max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col)
-        col_letter = get_column_letter(col[0].column)
-        ws_data.column_dimensions[col_letter].width = max_length + 2
+        start_col += block_size + 1
 
-    # Add Graphs
+    for col_cells in ws_data.columns:
+        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+        col_letter = get_column_letter(col_cells[0].column)
+        ws_data.column_dimensions[col_letter].width = max_len + 2
+
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
-        if os.path.exists(image_path):
-            img = Image(image_path)
-            img.width = 800
-            img.height = 400
-            ws_charts.add_image(img, f"A{row_pos}")
-            row_pos += 22
+        if not os.path.exists(image_path):
+            continue
+        img = Image(image_path)
+        img.width = 800
+        img.height = 400
+        ws_charts.add_image(img, f"A{row_pos}")
+        row_pos += 22
 
     wb.save(xlsx_path)
 
@@ -131,7 +130,6 @@ for file in os.listdir(csv_dir):
     csv_path = os.path.join(csv_dir, file)
 
     df_normalized = load_normalized_data(csv_path)
-
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
