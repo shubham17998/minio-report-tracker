@@ -72,14 +72,16 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # ✅ Read CSV, clean Unnamed cols, fix headers
+    # ✅ Read CSV, remove "Unnamed" columns, assign fixed headers per block
     df_raw = pd.read_csv(csv_path, dtype=str)
     df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed")]
 
-    # Replace headers like 'Date.1', 'Module.1' with clean headers
-    num_blocks = df_raw.shape[1] // 8
-    clean_headers = ["Date", "Module", "T", "P", "S", "F", "I", "KI"] * num_blocks
-    df_raw.columns = clean_headers
+    expected_block = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+    num_blocks = df_raw.shape[1] // len(expected_block)
+    total_cols_expected = num_blocks * len(expected_block)
+
+    df_raw = df_raw.iloc[:, :total_cols_expected]  # Trim extra columns
+    df_raw.columns = expected_block * num_blocks   # Apply repeated headers
 
     for row in dataframe_to_rows(df_raw, index=False, header=True):
         ws_data.append(row)
