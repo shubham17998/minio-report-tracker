@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
-from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
 
 def load_normalized_data(csv_path):
     rows = []
@@ -70,40 +70,35 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data.title = "Module Data"
 
     df_raw = pd.read_csv(csv_path, dtype=str)
-    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed|^\\s*$")]
 
+    # Break df into column groups of 8 (date-wise blocks)
+    num_cols = df_raw.shape[1]
     block_size = 8
-    total_cols = df_raw.shape[1]
-    num_blocks = total_cols // block_size
-    true_headers = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
+    blocks = [df_raw.iloc[:, i:i+block_size] for i in range(0, num_cols, block_size)]
 
-    for block_index in range(num_blocks):
-        start_col = block_index * block_size
-        end_col = start_col + block_size
-        df_block = df_raw.iloc[:, start_col:end_col]
-        df_block.columns = true_headers
-
-        # One column gap between each block
-        gap = 1
-        col_offset = block_index * (block_size + gap)
-
-        # Write headers with bold styling
-        for col_idx, col_name in enumerate(true_headers):
-            cell = ws_data.cell(row=1, column=col_offset + col_idx + 1, value=col_name)
+    start_col = 1  # Excel columns are 1-indexed
+    for block in blocks:
+        # Write header
+        for col_idx, col_name in enumerate(block.columns):
+            cell = ws_data.cell(row=1, column=start_col + col_idx)
+            cell.value = col_name
             cell.font = Font(bold=True)
 
-        # Write each row
-        for row_idx, row in enumerate(df_block.itertuples(index=False), start=2):
+        # Write data
+        for row_idx, row in enumerate(block.itertuples(index=False), start=2):
             for col_idx, value in enumerate(row):
-                ws_data.cell(row=row_idx, column=col_offset + col_idx + 1, value=value)
+                ws_data.cell(row=row_idx, column=start_col + col_idx, value=value)
 
-    # Auto-adjust column widths
+        # Add one-column gap after each block
+        start_col += block_size + 1
+
+    # Adjust column widths
     for col_cells in ws_data.columns:
-        col_letter = get_column_letter(col_cells[0].column)
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+        col_letter = get_column_letter(col_cells[0].column)
         ws_data.column_dimensions[col_letter].width = max_len + 2
 
-    # Create graph sheet
+    # Graphs
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -118,7 +113,6 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     wb.save(xlsx_path)
 
 # === MAIN EXECUTION ===
-
 csv_dir = "minio-report-tracker/csv"
 output_base = "minio-report-tracker/xlxs"
 os.makedirs(output_base, exist_ok=True)
@@ -131,7 +125,6 @@ for file in os.listdir(csv_dir):
     csv_path = os.path.join(csv_dir, file)
 
     df_normalized = load_normalized_data(csv_path)
-
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
