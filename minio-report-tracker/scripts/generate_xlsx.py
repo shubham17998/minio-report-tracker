@@ -7,9 +7,10 @@ from openpyxl.drawing.image import Image
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
-def load_and_normalize_data(input_file):
+def load_normalized_data(csv_path):
+    # Read and normalize for plotting only
     rows = []
-    with open(input_file, 'r') as f:
+    with open(csv_path, 'r') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("###"):
@@ -64,24 +65,23 @@ def generate_graphs(df, output_dir):
 
     return graph_files
 
-def export_to_excel(df, graph_files, xlsx_path):
+def export_to_excel(csv_path, graph_files, xlsx_path):
     wb = Workbook()
-
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    for row in dataframe_to_rows(df, index=False, header=True):
+    # 1️⃣ Write CSV as-is to Excel
+    df_raw = pd.read_csv(csv_path, dtype=str)  # Preserve format
+    for row in dataframe_to_rows(df_raw, index=False, header=True):
         ws_data.append(row)
 
-    # Format date cells in column A and auto-adjust column widths
-    for cell in ws_data["A"][1:]:  # Skip header
-        cell.number_format = "DD-MMM-YYYY"
-
+    # Auto-adjust column widths
     for column_cells in ws_data.columns:
         length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
         col_letter = get_column_letter(column_cells[0].column)
         ws_data.column_dimensions[col_letter].width = length + 2
 
+    # 2️⃣ Add charts in another sheet
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
@@ -107,11 +107,13 @@ for file in os.listdir(csv_dir):
 
     alias = file.replace(".csv", "")
     csv_path = os.path.join(csv_dir, file)
-    df = load_and_normalize_data(csv_path)
+
+    df_normalized = load_normalized_data(csv_path)
 
     output_dir = os.path.join(output_base, f"{alias}_images")
     os.makedirs(output_dir, exist_ok=True)
 
-    graph_files = generate_graphs(df, output_dir)
+    graph_files = generate_graphs(df_normalized, output_dir)
     xlsx_path = os.path.join(output_base, f"{alias}.xlsx")
-    export_to_excel(df, graph_files, xlsx_path)
+
+    export_to_excel(csv_path, graph_files, xlsx_path)
