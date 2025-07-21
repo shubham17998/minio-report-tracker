@@ -8,7 +8,6 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
 def load_normalized_data(csv_path):
-    # Read and normalize for plotting only
     rows = []
     with open(csv_path, 'r') as f:
         for line in f:
@@ -24,6 +23,9 @@ def load_normalized_data(csv_path):
     df = pd.DataFrame(rows, columns=["Date", "Module", "T", "P", "S", "F", "I", "KI"])
     df = df[df["Date"].str.contains(r'\d{1,2}-[A-Za-z]+-\d{4}', na=False)]
     df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y")
+
+    # 🔥 Remove weekends (Saturday = 5, Sunday = 6)
+    df = df[df["Date"].dt.weekday < 5]
 
     for col in ["T", "P", "S", "F", "I", "KI"]:
         df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -70,18 +72,25 @@ def export_to_excel(csv_path, graph_files, xlsx_path):
     ws_data = wb.active
     ws_data.title = "Module Data"
 
-    # 1️⃣ Write CSV as-is to Excel
-    df_raw = pd.read_csv(csv_path, dtype=str)  # Preserve format
+    # ✅ Read CSV, clean Unnamed cols, fix headers
+    df_raw = pd.read_csv(csv_path, dtype=str)
+    df_raw = df_raw.loc[:, ~df_raw.columns.str.contains("^Unnamed")]
+
+    # Replace headers like 'Date.1', 'Module.1' with clean headers
+    num_blocks = df_raw.shape[1] // 8
+    clean_headers = ["Date", "Module", "T", "P", "S", "F", "I", "KI"] * num_blocks
+    df_raw.columns = clean_headers
+
     for row in dataframe_to_rows(df_raw, index=False, header=True):
         ws_data.append(row)
 
-    # Auto-adjust column widths
+    # 🧩 Auto-adjust column widths
     for column_cells in ws_data.columns:
-        length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
+        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
         col_letter = get_column_letter(column_cells[0].column)
         ws_data.column_dimensions[col_letter].width = length + 2
 
-    # 2️⃣ Add charts in another sheet
+    # 📊 Add charts
     ws_charts = wb.create_sheet(title="Module Graphs")
     row_pos = 1
     for module, image_path in graph_files:
