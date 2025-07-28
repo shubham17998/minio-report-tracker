@@ -51,24 +51,25 @@ jobs:
 
       - name: Remove old CSVs from Git folder
         run: |
-          rm -f minio-report-tracker/minio-report-tracker/csv/*.csv || true
-          git rm -f minio-report-tracker/minio-report-tracker/csv/*.csv || echo "No old CSV files to remove"
+          rm -f minio-report-tracker/csv/*.csv || true
+          git rm -f minio-report-tracker/csv/*.csv || echo "No old CSV files to remove"
 
       - name: Move new CSVs to Git folder
         run: |
-          mkdir -p minio-report-tracker/minio-report-tracker/csv
-          mv ../csv/*.csv minio-report-tracker/minio-report-tracker/csv/
+          mkdir -p minio-report-tracker/csv
+          mv ../csv/*.csv minio-report-tracker/csv/
 
       - name: Remove old XLSX files from Git folder
         run: |
-          rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || true
-          git rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || echo "No old XLSX files to remove"
+          rm -f minio-report-tracker/xlxs/*.xlsx || true
+          git rm -f minio-report-tracker/xlxs/*.xlsx || echo "No old XLSX files to remove"
 
       - name: Run XLSX generation script
         run: python minio-report-tracker/scripts/generate_xlsx.py
 
       - name: Ensure XLSX folder exists
         run: mkdir -p minio-report-tracker/minio-report-tracker/xlxs
+        
       - name: Run Google Sheet Update Script
         run: |
           echo '${{ secrets.GSHEETCREDS }}' > creds.json
@@ -78,7 +79,7 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add minio-report-tracker/minio-report-tracker/csv/*.csv
+          git add minio-report-tracker/csv/*.csv
           git add minio-report-tracker/xlxs/*.xlsx
           git commit -m "Update CSV, XLSX, and Google Sheet reports" --allow-empty || echo "Nothing to commit"
           git push origin develop
