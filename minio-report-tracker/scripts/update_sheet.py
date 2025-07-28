@@ -20,7 +20,7 @@ scope = [
 ]
 creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
 client = gspread.authorize(creds)
-sheet = client.open(GSHEET_NAME)
+sheet = client.open_by_key(SPREADSHEET_ID)
 
 # Process each CSV file
 for csv_file in os.listdir(CSV_DIR):
