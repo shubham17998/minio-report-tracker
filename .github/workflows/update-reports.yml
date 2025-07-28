@@ -59,16 +59,16 @@ jobs:
           mkdir -p minio-report-tracker/minio-report-tracker/csv
           mv ../csv/*.csv minio-report-tracker/minio-report-tracker/csv/
 
-      - name: Remove old XLSX files from Git folder
-        run: |
-          rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || true
-          git rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || echo "No old XLSX files to remove"
-
-      - name: Run XLSX generation script
-        run: python minio-report-tracker/scripts/generate_xlsx.py
-
-      - name: Ensure XLSX folder exists
-        run: mkdir -p minio-report-tracker/minio-report-tracker/xlxs
+#      - name: Remove old XLSX files from Git folder
+#        run: |
+#          rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || true
+#          git rm -f minio-report-tracker/minio-report-tracker/xlxs/*.xlsx || echo "No old XLSX files to remove"
+#
+#      - name: Run XLSX generation script
+#        run: python minio-report-tracker/scripts/generate_xlsx.py
+#
+#      - name: Ensure XLSX folder exists
+#        run: mkdir -p minio-report-tracker/minio-report-tracker/xlxs
 
       - name: Run Google Sheet Update Script
         run: |
