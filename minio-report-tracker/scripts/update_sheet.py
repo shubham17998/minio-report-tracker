@@ -1,13 +1,15 @@
 import os
+import csv
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import pandas as pd
-from datetime import datetime
+from google.oauth2.service_account import Credentials as GoogleCredentials
+from googleapiclient.discovery import build
+import time
+import json
 
-# Constants
-CSV_DIR = "minio-report-tracker/minio-report-tracker/csv"
-GSHEET_NAME = "MOSIP Report Tracker"
-DATE_CELL = "A1"
+# --- CONFIGURATION ---
+SOURCE_DIR = "minio-report-tracker/csv"
+SPREADSHEET_ID = "1gpV5T5Ol45VqmS8nI6Xk2MXWEeJMiXU1yoFUDMODi6g"
+CREDENTIALS_FILE = "creds.json"
 
 # Auth
 scope = [
