@@ -9,7 +9,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name }}
+      name: env-secret
 
     steps:
       - name: Checkout env-secret branch
