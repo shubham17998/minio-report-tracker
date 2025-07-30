@@ -8,12 +8,14 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name }}
 
     steps:
-      - name: Checkout develop branch
+      - name: Checkout env-secret branch
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: env-secret
           fetch-depth: 0
 
       - name: Set up Python
@@ -82,4 +84,4 @@ jobs:
           git add minio-report-tracker/csv/*.csv
           git add minio-report-tracker/xlxs/*.xlsx
           git commit -m "Update CSV, XLSX, and Google Sheet reports" --allow-empty || echo "Nothing to commit"
-          git push origin develop
+          git push origin env-secret
