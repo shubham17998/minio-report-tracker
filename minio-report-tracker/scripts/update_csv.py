@@ -73,7 +73,7 @@ for alias in MINIO_ALIASES:
                 mod_match = re.match(r"(ADMINUI|RESIDENT)-api-", fn)
                 if mod_match:
                     mod_raw = mod_match.group(1).lower()
-                    mod = "resident-ui" if mod_raw == "resident" else mod_raw
+                    mod = "residentui" if mod_raw == "resident" else mod_raw
                     m = re.search(r"report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)", fn)
                     if not m:
                         continue
