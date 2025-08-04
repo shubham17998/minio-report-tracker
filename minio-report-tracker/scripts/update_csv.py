@@ -72,7 +72,8 @@ for alias in MINIO_ALIASES:
 
                 mod_match = re.match(r"(ADMINUI|RESIDENT)-api-", fn)
                 if mod_match:
-                    mod = mod_match.group(1).lower()
+                    mod_raw = mod_match.group(1).lower()
+                    mod = "resident-ui" if mod_raw == "resident" else mod_raw
                     m = re.search(r"report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)", fn)
                     if not m:
                         continue
@@ -83,9 +84,7 @@ for alias in MINIO_ALIASES:
                         all_data_by_date[date_key] = []
                     if not any(row[1] == mod for row in all_data_by_date[date_key]):
                         all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
-            # Continue after handling top-level ADMINUI/RESIDENT files
-            # Do not `continue` here because PMPUI is inside a subfolder
-            # We'll handle it during folder processing below
+            # Do not 'continue' here, allow folder logic to run for Pmpui
 
         # List folders
         cmd = f"mc ls --json {alias}/{bucket}/"
