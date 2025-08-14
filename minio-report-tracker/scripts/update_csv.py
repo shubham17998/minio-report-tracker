@@ -3,8 +3,13 @@ import re
 import json
 import subprocess
 import pandas as pd
-from datetime import datetime
-from dateutil import parser  # NEW: for parsing actual upload timestamps
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+    IST = ZoneInfo("Asia/Kolkata")
+except Exception:
+    # Fallback if zoneinfo/tzdata is unavailable
+    IST = timezone(timedelta(hours=5, minutes=30))
 
 MINIO_ALIASES = ["cellbox21", "collab", "dev-int", "dev3", "released", "dev1", "qa-base", "qa-core", "qa-country", "qa1-java21"]
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports", "uitestrig"]
@@ -12,6 +17,21 @@ columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
 def format_date_str(dt):
     return dt.strftime("%d-%B-%Y")
+
+def date_key_from_minio_ts(ts: str) -> str:
+    """
+    Convert MinIO 'lastModified' (UTC, e.g. '2025-08-13T21:25:10.000Z')
+    to an IST date key like '14-August-2025'.
+    """
+    # Normalize 'Z' to '+00:00' so fromisoformat can parse
+    ts_norm = ts.replace('Z', '+00:00')
+    try:
+        dt = datetime.fromisoformat(ts_norm)
+    except ValueError:
+        # Fallback: parse without fractional seconds
+        dt = datetime.strptime(ts_norm[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+    dt_ist = dt.astimezone(IST)
+    return format_date_str(dt_ist)
 
 for alias in MINIO_ALIASES:
     csv_filename = f"{alias}.csv"
@@ -31,7 +51,7 @@ for alias in MINIO_ALIASES:
                     if fn.startswith("ExtentReport-"):
                         continue
                     ts = info["lastModified"]
-                    date_obj = parser.isoparse(ts).astimezone()  # FIXED: actual upload date
+                    date_key = date_key_from_minio_ts(ts)
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
@@ -45,7 +65,6 @@ for alias in MINIO_ALIASES:
                 T, P, KI, I, S, F = m.groups()
                 I = I or "0"
                 KI = KI or "0"
-                date_key = format_date_str(date_obj)
 
                 if date_key not in all_data_by_date:
                     all_data_by_date[date_key] = []
@@ -62,7 +81,7 @@ for alias in MINIO_ALIASES:
                     info = json.loads(line)
                     fn = info["key"]
                     ts = info["lastModified"]
-                    date_obj = parser.isoparse(ts).astimezone()  # FIXED
+                    date_key = date_key_from_minio_ts(ts)
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
@@ -78,13 +97,13 @@ for alias in MINIO_ALIASES:
                         continue
                     T, P, S, F = m.groups()
                     I, KI = "0", "0"
-                    date_key = format_date_str(date_obj)
+
                     if date_key not in all_data_by_date:
                         all_data_by_date[date_key] = []
                     if not any(row[1] == mod for row in all_data_by_date[date_key]):
                         all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
-            # Do not continue here — allow folder logic to run for PMPUI
+            # Do not 'continue' here — allow folder logic to run for PMPUI
 
         # --- List folders ---
         cmd = f"mc ls --json {alias}/{bucket}/"
@@ -109,7 +128,7 @@ for alias in MINIO_ALIASES:
                         info = json.loads(line)
                         fn = info["key"]
                         ts = info["lastModified"]
-                        date_obj = parser.isoparse(ts).astimezone()  # FIXED
+                        date_key = date_key_from_minio_ts(ts)
                     except (json.JSONDecodeError, KeyError, ValueError):
                         continue
 
@@ -121,14 +140,14 @@ for alias in MINIO_ALIASES:
                     T, P, S, F = m.groups()
                     I, KI = "0", "0"
                     mod = "pmpui"
-                    date_key = format_date_str(date_obj)
+
                     if date_key not in all_data_by_date:
                         all_data_by_date[date_key] = []
                     if not any(row[1] == mod for row in all_data_by_date[date_key]):
                         all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
                 continue
 
-            # --- Default logic ---
+            # --- Default logic for other folders ---
             folder_path = f"{bucket}/{folder}"
             cmd = f"mc ls --json {alias}/{folder_path}/"
             lines = subprocess.getoutput(cmd).splitlines()
@@ -137,7 +156,7 @@ for alias in MINIO_ALIASES:
                     info = json.loads(line)
                     fn = info["key"]
                     ts = info["lastModified"]
-                    date_obj = parser.isoparse(ts).astimezone()  # FIXED
+                    date_key = date_key_from_minio_ts(ts)
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
@@ -158,7 +177,6 @@ for alias in MINIO_ALIASES:
                 else:
                     mod = folder
 
-                date_key = format_date_str(date_obj)
                 if date_key not in all_data_by_date:
                     all_data_by_date[date_key] = []
                 if not any(row[1] == mod for row in all_data_by_date[date_key]):
