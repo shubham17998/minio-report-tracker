@@ -4,6 +4,7 @@ import json
 import subprocess
 import pandas as pd
 from datetime import datetime
+from dateutil import parser  # NEW: for parsing actual upload timestamps
 
 MINIO_ALIASES = ["cellbox21", "collab", "dev-int", "dev3", "released", "dev1", "qa-base", "qa-core", "qa-country", "qa1-java21"]
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports", "uitestrig"]
@@ -19,11 +20,10 @@ for alias in MINIO_ALIASES:
     for bucket in MINIO_BUCKETS:
         folders = []
 
-        # Special handling for dslreports
+        # --- Special handling for dslreports ---
         if bucket == "dslreports":
             cmd = f"mc ls --json {alias}/dslreports/full/"
             output = subprocess.getoutput(cmd)
-
             for line in output.splitlines():
                 try:
                     info = json.loads(line)
@@ -31,14 +31,14 @@ for alias in MINIO_ALIASES:
                     if fn.startswith("ExtentReport-"):
                         continue
                     ts = info["lastModified"]
-                    date_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
+                    date_obj = parser.isoparse(ts).astimezone()  # FIXED: actual upload date
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
                 if not re.search(r"report_T-\d+_P-\d+(?:_KI-\d+)?(?:_I-\d+)?_S-\d+_F-\d+", fn):
                     continue
 
-                m = re.search(r"report_T-(\d+)_P-(\d+)(?:_KI-(\d+))?(?:_I-(\d+))?_S-(\d+)_F-(\d+)",fn)
+                m = re.search(r"report_T-(\d+)_P-(\d+)(?:_KI-(\d+))?(?:_I-(\d+))?_S-(\d+)_F-(\d+)", fn)
                 if not m:
                     continue
 
@@ -49,22 +49,20 @@ for alias in MINIO_ALIASES:
 
                 if date_key not in all_data_by_date:
                     all_data_by_date[date_key] = []
-
                 if not any(row[1] == "dsl" for row in all_data_by_date[date_key]):
                     all_data_by_date[date_key].append([date_key, "dsl", T, P, S, F, I, KI])
             continue
 
-        # Special handling for uitestrig - ADMINUI, RESIDENT directly
+        # --- Special handling for uitestrig - ADMINUI, RESIDENT directly ---
         if bucket == "uitestrig":
             cmd = f"mc ls --json {alias}/{bucket}/"
             lines = subprocess.getoutput(cmd).splitlines()
-
             for line in lines:
                 try:
                     info = json.loads(line)
                     fn = info["key"]
                     ts = info["lastModified"]
-                    date_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
+                    date_obj = parser.isoparse(ts).astimezone()  # FIXED
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
@@ -85,12 +83,12 @@ for alias in MINIO_ALIASES:
                         all_data_by_date[date_key] = []
                     if not any(row[1] == mod for row in all_data_by_date[date_key]):
                         all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
-            # Do not 'continue' here, allow folder logic to run for Pmpui
 
-        # List folders
+            # Do not continue here — allow folder logic to run for PMPUI
+
+        # --- List folders ---
         cmd = f"mc ls --json {alias}/{bucket}/"
         output = subprocess.getoutput(cmd)
-
         for line in output.splitlines():
             try:
                 folders.append(json.loads(line)["key"].strip("/"))
@@ -101,28 +99,25 @@ for alias in MINIO_ALIASES:
             continue
 
         for folder in folders:
-            # Special case: PMPUI report inside 'Pmpui' subfolder
+            # --- Special case: PMPUI ---
             if bucket == "uitestrig" and folder.lower() == "pmpui":
                 folder_path = f"{bucket}/{folder}"
                 cmd = f"mc ls --json {alias}/{folder_path}/"
                 lines = subprocess.getoutput(cmd).splitlines()
-
                 for line in lines:
                     try:
                         info = json.loads(line)
                         fn = info["key"]
                         ts = info["lastModified"]
-                        date_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
+                        date_obj = parser.isoparse(ts).astimezone()  # FIXED
                     except (json.JSONDecodeError, KeyError, ValueError):
                         continue
 
                     if not re.search(r"PMPUI-.*-report_T-\d+_P-\d+_S-\d+_F-\d+", fn):
                         continue
-
                     m = re.search(r"report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)", fn)
                     if not m:
                         continue
-
                     T, P, S, F = m.groups()
                     I, KI = "0", "0"
                     mod = "pmpui"
@@ -133,30 +128,26 @@ for alias in MINIO_ALIASES:
                         all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
                 continue
 
-            # Default logic for other folders
+            # --- Default logic ---
             folder_path = f"{bucket}/{folder}"
             cmd = f"mc ls --json {alias}/{folder_path}/"
             lines = subprocess.getoutput(cmd).splitlines()
-
             for line in lines:
                 try:
                     info = json.loads(line)
                     fn = info["key"]
                     ts = info["lastModified"]
-                    date_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
+                    date_obj = parser.isoparse(ts).astimezone()  # FIXED
                 except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
                 if "error-report" in fn:
                     continue
-
                 if not re.search(r"(full-)?report_T-\d+_P-\d+_S-\d+_F-", fn):
                     continue
-
                 m = re.search(r"report_T-(\d+)_P-(\d+)_S-(\d+)_F-(\d+)(?:_I-(\d+))?(?:_KI-(\d+))?", fn)
                 if not m:
                     continue
-
                 T, P, S, F, I, KI = m.groups()
                 I = I or "0"
                 KI = KI or "0"
@@ -170,7 +161,6 @@ for alias in MINIO_ALIASES:
                 date_key = format_date_str(date_obj)
                 if date_key not in all_data_by_date:
                     all_data_by_date[date_key] = []
-
                 if not any(row[1] == mod for row in all_data_by_date[date_key]):
                     all_data_by_date[date_key].append([date_key, mod, T, P, S, F, I, KI])
 
@@ -180,17 +170,15 @@ for alias in MINIO_ALIASES:
         key=lambda x: datetime.strptime(x, "%d-%B-%Y"),
         reverse=True
     )
-
     weekdays_only = []
     for date_str in sorted_dates:
         dt = datetime.strptime(date_str, "%d-%B-%Y")
-        if dt.weekday() < 5:  # Monday to Friday (0–4)
+        if dt.weekday() < 5:  # Monday–Friday
             weekdays_only.append(date_str)
         if len(weekdays_only) == 5:
             break
 
     latest_dates = weekdays_only
-
     dfs = []
     for date in latest_dates:
         df = pd.DataFrame(all_data_by_date[date], columns=columns)
