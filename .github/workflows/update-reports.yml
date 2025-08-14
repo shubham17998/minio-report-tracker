@@ -46,7 +46,7 @@ jobs:
 
       - name: Configure MinIO Aliases from Secrets
         run: |
-          mc alias set "${{ secrets.MINIO_CELLBOX21_NAME }}" "${{ secrets.MINIO_CELLBOX21_URL }}" "${{ secrets.MINIO_CELLBOX21_USER }}" "${{ secrets.MINIO_CELLBOX21_PASSWORD }}" --api S3v2
+          mc alias set "${{ secrets.MINIO_QA1JAVA21_NAME }}" "${{ secrets.MINIO_QA1JAVA21_URL }}" "${{ secrets.MINIO_QA1JAVA21_USER }}" "${{ secrets.MINIO_QA1JAVA21_PASSWORD }}" --api S3v2
 
       - name: Remove old CSVs from Git folder
         run: |
