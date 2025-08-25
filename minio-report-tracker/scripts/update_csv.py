@@ -11,7 +11,12 @@ except Exception:
     # Fallback if zoneinfo/tzdata is unavailable
     IST = timezone(timedelta(hours=5, minutes=30))
 
-MINIO_ALIASES = ["cellbox21", "collab", "dev-int", "dev3", "released", "dev1", "qa-base", "qa-core", "qa-country", "qa1-java21"]
+# Load aliases dynamically from JSON
+with open(os.path.join("scripts", "minio_aliases.json")) as f:
+    data = json.load(f)
+
+MINIO_ALIASES = list(data.keys())
+
 MINIO_BUCKETS = ["apitestrig", "automation", "dslreports", "uitestrig"]
 columns = ["Date", "Module", "T", "P", "S", "F", "I", "KI"]
 
