@@ -44,9 +44,12 @@ jobs:
           sudo mv mc /usr/local/bin/
           mc --version
 
-      - name: Configure MinIO Aliases from Secrets
+      - name: Configure MinIO aliases
         run: |
-          mc alias set "${{ secrets.MINIO_QA1JAVA21_NAME }}" "${{ secrets.MINIO_QA1JAVA21_URL }}" "${{ secrets.MINIO_QA1JAVA21_USER }}" "${{ secrets.MINIO_QA1JAVA21_PASSWORD }}" --api S3v2
+          aliases=$(cat scripts/minio_aliases.json | jq -r 'to_entries[] | "\(.key) \(.value.name) \(.value.url) \(.value.user) \(.value.password)"')
+          while read alias name url user password; do
+            mc alias set "${{ secrets[$name] }}" "${{ secrets[$url] }}" "${{ secrets[$user] }}" "${{ secrets[$password] }}" --api S3v2
+          done <<< "$aliases"
 
       - name: Remove old CSVs from Git folder
         run: |
