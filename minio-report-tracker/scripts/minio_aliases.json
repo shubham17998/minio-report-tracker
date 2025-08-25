@@ -1,0 +1,8 @@
+{
+  "cellbox21": {
+    "name": "MINIO_QA1JAVA21_NAME",
+    "url": "MINIO_QA1JAVA21_URL",
+    "user": "MINIO_QA1JAVA21_USER",
+    "password": "MINIO_QA1JAVA21_PASSWORD"
+  }
+}
