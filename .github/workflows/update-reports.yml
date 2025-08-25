@@ -46,10 +46,13 @@ jobs:
 
       - name: Configure MinIO aliases
         run: |
-          aliases=$(cat scripts/minio_aliases.json | jq -r 'to_entries[] | "\(.key) \(.value.name) \(.value.url) \(.value.user) \(.value.password)"')
-          while read alias name url user password; do
-            mc alias set "${{ secrets[$name] }}" "${{ secrets[$url] }}" "${{ secrets[$user] }}" "${{ secrets[$password] }}" --api S3v2
-          done <<< "$aliases"
+          for alias in cellbox21 dev1; do
+            name=$(jq -r .[$alias].name minio_aliases.json)
+            url=$(jq -r .[$alias].url minio_aliases.json)
+            user=$(jq -r .[$alias].user minio_aliases.json)
+            password=$(jq -r .[$alias].password minio_aliases.json)
+            mc alias set "$name" "$url" "$user" "$password" --api S3v2
+          done
 
       - name: Remove old CSVs from Git folder
         run: |
