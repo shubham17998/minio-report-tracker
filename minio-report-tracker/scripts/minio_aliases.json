@@ -1,8 +1,8 @@
 {
-  "cellbox21": {
-    "name": "MINIO_QA1JAVA21_NAME",
-    "url": "MINIO_QA1JAVA21_URL",
-    "user": "MINIO_QA1JAVA21_USER",
-    "password": "MINIO_QA1JAVA21_PASSWORD"
+  "qa1-java21": {
+    "name": "${{ secrets.MINIO_QA1JAVA21_NAME }}",
+    "url": "${{ secrets.MINIO_QA1JAVA21_URL }}",
+    "user": "${{ secrets.MINIO_QA1JAVA21_USER }}",
+    "password": "${{ secrets.MINIO_QA1JAVA21_PASSWORD }}"
   }
 }
