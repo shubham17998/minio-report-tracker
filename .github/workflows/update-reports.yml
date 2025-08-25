@@ -44,15 +44,12 @@ jobs:
           sudo mv mc /usr/local/bin/
           mc --version
 
-      - name: Configure MinIO aliases
+      - name: Configure MinIO Aliases from Secrets
         run: |
-          for alias in cellbox21 dev1; do
-            name=$(jq -r .[$alias].name minio_aliases.json)
-            url=$(jq -r .[$alias].url minio_aliases.json)
-            user=$(jq -r .[$alias].user minio_aliases.json)
-            password=$(jq -r .[$alias].password minio_aliases.json)
-            mc alias set "$name" "$url" "$user" "$password" --api S3v2
-          done
+          mc alias set "${{ secrets.MINIO_QA1JAVA21_NAME }}" "${{ secrets.MINIO_QA1JAVA21_URL }}" "${{ secrets.MINIO_QA1JAVA21_USER }}" "${{ secrets.MINIO_QA1JAVA21_PASSWORD }}" --api S3v2
+
+          # Export all aliases into env var
+          echo "MINIO_ALIASES=qa1-java21" >> $GITHUB_ENV
 
       - name: Remove old CSVs from Git folder
         run: |
